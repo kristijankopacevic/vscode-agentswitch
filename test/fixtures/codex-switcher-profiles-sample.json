@@ -1,0 +1,34 @@
+{
+  "_note": "agentswitch-test-fixture-synthetic — not a real credential",
+  "version": 1,
+  "profiles": [
+    {
+      "id": "profile-1",
+      "name": "Work",
+      "email": "work@example.com",
+      "planType": "team",
+      "accountId": "00000000-0000-0000-0000-0000000000a1",
+      "defaultOrganizationId": "org-a1",
+      "defaultOrganizationTitle": "ExampleOrg",
+      "chatgptUserId": "user-a1",
+      "userId": "user-a1",
+      "subject": "sub-a1",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "profile-2",
+      "name": "",
+      "email": "personal@example.com",
+      "planType": "plus",
+      "accountId": "00000000-0000-0000-0000-0000000000a2",
+      "defaultOrganizationId": "org-a2",
+      "defaultOrganizationTitle": "Personal",
+      "chatgptUserId": "user-a2",
+      "userId": "user-a2",
+      "subject": "sub-a2",
+      "createdAt": "2026-01-03T00:00:00.000Z",
+      "updatedAt": "2026-01-04T00:00:00.000Z"
+    }
+  ]
+}
