@@ -1,0 +1,13 @@
+node_modules/
+dist/
+out/
+*.vsix
+*.log
+.DS_Store
+
+# Never commit real credential files, backups, or anything auth-shaped.
+# Test fixtures use synthetic tokens and live under test/fixtures/ — see
+# scripts/check-no-secrets.js, which also greps those for accidental real tokens.
+auth*.json
+*.credentials.json
+**/backups/**

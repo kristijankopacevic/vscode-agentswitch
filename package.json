@@ -1,0 +1,51 @@
+{
+  "name": "agentswitch",
+  "displayName": "AgentSwitch",
+  "description": "Switch accounts for Codex and Claude Code (extension + CLI) and track usage, cost, and rate limits.",
+  "version": "0.1.0",
+  "publisher": "kristijankopacevic",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentswitch.switchAccount",
+        "title": "AgentSwitch: Switch Account"
+      },
+      {
+        "command": "agentswitch.showUsage",
+        "title": "AgentSwitch: Show Usage Dashboard"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node20",
+    "watch": "npm run build -- --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "npm run typecheck && npm run lint && npm test && npm run build && vsce package",
+    "check:no-secrets": "node scripts/check-no-secrets.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0",
+    "@vscode/vsce": "^2.32.0",
+    "esbuild": "^0.23.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}
