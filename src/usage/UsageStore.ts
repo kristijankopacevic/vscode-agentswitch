@@ -59,6 +59,10 @@ export class UsageStore {
     return merged;
   }
 
+  getCurrentBreakdown(): UsageBreakdown {
+    return this.state.get<UsageBreakdown>(BREAKDOWN_KEY) ?? emptyBreakdown();
+  }
+
   getCodexRateLimit(): CodexRateLimit | null {
     return this.state.get<CodexRateLimit>(RATE_LIMIT_KEY) ?? null;
   }

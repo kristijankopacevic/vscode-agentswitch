@@ -31,8 +31,10 @@ Usage and rate-limit data are both fully local:
 - Codex: per-session truth in `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, `event_msg`
   lines of type `token_count` carrying `info.total_token_usage` **and** a real
   `rate_limits.primary.{used_percent, window_minutes, resets_at}` — Codex's rate-limit
-  window is exact, no estimate needed. Codex writes no cost figures, so a small
-  model→price table is maintained separately with a refresh command.
+  window is exact, no estimate needed. Codex writes no cost figures — v0.1 shows
+  Codex tokens only, no cost. A pricing table with a refresh command is deferred
+  to a follow-up; the dashboard says so explicitly rather than showing a
+  silently-missing number.
 
 ## Architecture
 
@@ -56,9 +58,30 @@ content, never a mix.
 - Tokens live only in VS Code SecretStorage (OS-encrypted) — never in a plaintext
   profile file.
 - Every log line and error message is redacted before it can reach an output channel.
-- No network egress except an optional, pinned Codex pricing refresh.
+- No network egress at all in v0.1 (the pinned Codex pricing refresh described above
+  is part of the deferred pricing table, not yet built).
 - `.gitignore` excludes anything credential-shaped; `scripts/check-no-secrets.js` runs in
   CI and fails the build if a token-shaped string is about to be committed.
+
+## Dashboard
+
+Four views, backed entirely by the logic layer above: overview stat tiles, Codex's
+exact rate-limit meter next to Claude's estimate (visibly labelled as such), a table
+per account and per project, and **switch history** — the raw switch log, not a token
+trend chart. An earlier draft of this dashboard added an unplanned daily trend line and
+dropped switch history; that was caught and reverted before release.
+
+## Verification limits
+
+Everything in `src/vaults`, `src/profiles`, `src/attribution`, `src/switch`,
+`src/usage`, and `src/ui/dashboard/render.ts` is unit-tested (83 tests) without a
+`vscode` import, run against synthetic fixtures. `src/appContext.ts`,
+`src/ui/statusBar.ts`, `src/ui/switchQuickPick.ts`, `src/ui/dashboard/panel.ts`, and
+`src/extension.ts` depend on the real `vscode` module and can only run inside a live
+VS Code window — they are type-checked against `@types/vscode` and packaged into a
+real `.vsix`, but "the status bar shows the right account" and "the quick pick
+switches correctly" are claims for a human to verify by installing it, not claims an
+automated build can make.
 
 ## Known limitations
 

@@ -6,6 +6,10 @@
   "publisher": "kristijankopacevic",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kristijankopacevic/vscode-agentswitch.git"
+  },
   "engines": {
     "vscode": "^1.90.0",
     "node": ">=20"

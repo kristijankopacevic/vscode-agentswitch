@@ -2,7 +2,7 @@ export interface DashboardData {
   totals: { codexTokens: number; claudeTokens: number; claudeCostUSD: number };
   codexRateLimit: { usedPercent: number; windowMinutes: number } | null;
   claudeRollingEstimate: { fiveHourTokens: number; sevenDayTokens: number };
-  byProfile: Array<{ label: string; toolId: 'codex' | 'claude'; inputTokens: number; outputTokens: number }>;
+  byProfile: Array<{ label: string; toolLabel: string; inputTokens: number; outputTokens: number }>;
   byProject: Array<{ project: string; inputTokens: number; outputTokens: number }>;
   /** Newest first. The raw switch log — this is the "over time" view: what changed and when, not a token trend. */
   switchHistory: Array<{ ts: string; toolLabel: string; profileLabel: string }>;
@@ -46,11 +46,7 @@ function table(headers: string[], rows: string[][]): string {
 export function renderDashboardHtml(data: DashboardData, nonce: string): string {
   const csp = `default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'nonce-${nonce}';`;
 
-  const profileRows = data.byProfile.map((p) => [
-    esc(p.label),
-    esc(p.toolId === 'codex' ? 'Codex' : 'Claude'),
-    fmt(p.inputTokens + p.outputTokens),
-  ]);
+  const profileRows = data.byProfile.map((p) => [esc(p.label), esc(p.toolLabel), fmt(p.inputTokens + p.outputTokens)]);
   const projectRows = data.byProject.map((p) => [esc(p.project), fmt(p.inputTokens + p.outputTokens)]);
   const historyRows = data.switchHistory.map((h) => [esc(h.ts), esc(h.toolLabel), esc(h.profileLabel)]);
 

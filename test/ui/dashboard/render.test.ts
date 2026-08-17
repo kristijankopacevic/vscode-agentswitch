@@ -6,8 +6,9 @@ const DATA: DashboardData = {
   codexRateLimit: { usedPercent: 17, windowMinutes: 10080 },
   claudeRollingEstimate: { fiveHourTokens: 4000, sevenDayTokens: 50000 },
   byProfile: [
-    { label: 'Work', toolId: 'codex', inputTokens: 1000, outputTokens: 200 },
-    { label: 'Personal', toolId: 'claude', inputTokens: 2000, outputTokens: 300 },
+    { label: 'Work', toolLabel: 'Codex', inputTokens: 1000, outputTokens: 200 },
+    { label: 'Personal', toolLabel: 'Claude', inputTokens: 2000, outputTokens: 300 },
+    { label: 'Unattributed (before AgentSwitch)', toolLabel: 'Codex + Claude', inputTokens: 10, outputTokens: 1 },
   ],
   byProject: [{ project: 'my-repo', inputTokens: 500, outputTokens: 100 }],
   switchHistory: [

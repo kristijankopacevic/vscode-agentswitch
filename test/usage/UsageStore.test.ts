@@ -70,6 +70,18 @@ describe('UsageStore', () => {
     expect(store.getCodexRateLimit()).toEqual({ usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 });
   });
 
+  it('getCurrentBreakdown() returns the persisted breakdown without re-reading any files', async () => {
+    fs.writeFileSync(claudeFile, claudeLine('2026-08-17T10:00:00.000Z', 100) + '\n');
+    await store.refresh([{ path: claudeFile, project: 'proj-a' }], []);
+    fs.rmSync(claudeFile); // prove a subsequent call can't be re-deriving this from the file
+
+    expect(store.getCurrentBreakdown().overall.inputTokens).toBe(100);
+  });
+
+  it('getCurrentBreakdown() returns an empty breakdown before any refresh has run', () => {
+    expect(store.getCurrentBreakdown().overall.inputTokens).toBe(0);
+  });
+
   it('getClaudeRollingEstimate() only counts events inside the given window', async () => {
     fs.writeFileSync(
       claudeFile,
