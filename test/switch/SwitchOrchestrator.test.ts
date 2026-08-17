@@ -67,6 +67,17 @@ describe('SwitchOrchestrator', () => {
     expect(switchLog.recent()).toHaveLength(0);
   });
 
+  it('adoptCurrentAsActive() marks a profile active and logs it, without touching the vault', async () => {
+    const profile = await profiles.create({ toolId: 'codex', label: 'Already signed in', snapshot: { account: 'original' } });
+
+    await orchestrator.adoptCurrentAsActive('codex', profile.id);
+
+    expect(vault.captureLive()).toEqual({ account: 'original' }); // vault untouched
+    expect(orchestrator.activeProfileId('codex')).toBe(profile.id);
+    expect(switchLog.recent()[0]).toMatchObject({ toolId: 'codex', profileId: profile.id });
+    expect(backups.list('codex')).toHaveLength(0); // nothing to back up — nothing changed
+  });
+
   it('switchTo() captures the outgoing account\'s live state into its own profile first, preserving refreshed tokens', async () => {
     const original = await profiles.create({ toolId: 'codex', label: 'A', snapshot: { account: 'stale' } });
     await orchestrator.switchTo('codex', original.id);

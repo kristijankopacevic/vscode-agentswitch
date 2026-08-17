@@ -32,6 +32,16 @@ export class SwitchOrchestrator {
     return this.state.get<string>(activeProfileKey(toolId));
   }
 
+  /**
+   * Marks `profileId` as active for `toolId` without touching the vault —
+   * used by "Add Account", which captures whatever is already live into a
+   * new profile. There is nothing to switch to and nothing to back up.
+   */
+  async adoptCurrentAsActive(toolId: ToolId, profileId: string): Promise<void> {
+    await this.state.update(activeProfileKey(toolId), profileId);
+    await this.switchLog.append(toolId, profileId);
+  }
+
   async switchTo(toolId: ToolId, targetProfileId: string): Promise<void> {
     const vault = this.vaults[toolId];
     if (!vault) throw new Error(`No vault registered for tool "${toolId}".`);
