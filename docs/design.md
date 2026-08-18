@@ -153,7 +153,7 @@ signed in yet" is a value the flow needs to check.
 Everything in `src/vaults`, `src/profiles`, `src/attribution`, `src/switch`,
 `src/usage`, `src/tools`, `src/ui/switchActions.ts`, `src/ui/accountActions.ts`,
 `src/ui/accountRows.ts`, `src/ui/formatUsage.ts`, `src/ui/errorReporting.ts`, and
-`src/ui/dashboard/render.ts` is unit-tested (165 tests) without a `vscode` import, run
+`src/ui/dashboard/render.ts` is unit-tested (177 tests) without a `vscode` import, run
 against synthetic fixtures. `src/appContext.ts`, `src/ui/statusBar.ts`,
 `src/ui/switchQuickPick.ts`, `src/ui/authLauncher.ts`, `src/ui/authFlows.ts`,
 `src/ui/dashboard/panel.ts`, and `src/extension.ts` depend on the real `vscode`
@@ -176,14 +176,47 @@ than trusting the persisted shape. **Any future change to a persisted globalStat
 value's shape needs the same treatment** — validate on read, never assume old data
 matches the current type.
 
+## Platform support (Windows and Linux; not macOS)
+
+Every path that used to hardcode Windows now takes an explicit `platform` parameter
+(`NodeJS.Platform`, defaulting to `process.platform` at the real call site) so both
+platforms' behavior is unit-tested from any host, not just discovered by running on
+the real OS:
+
+- **`resolveCodexBinary()`** (`src/tools/codexBinary.ts`) matches the extension
+  folder's own VS Code `targetPlatform` suffix (`win32-x64` / `linux-x64`) and then
+  looks inside `bin/<subfolder>/<binary>`. Windows (`windows-x86_64/codex.exe`) is
+  **verified** against a real install. Linux's bin subfolder name is **an educated
+  guess, not yet verified against a real install** — it tries `linux-x86_64` then
+  `linux-x64` and uses whichever actually exists, so a wrong guess degrades to the
+  existing "could not find the Codex CLI" error rather than a crash or a false
+  positive. If that error fires on a real Linux machine, the fix is to `ls` the
+  `bin/` folder under the installed `openai.chatgpt-*-linux-x64` extension and add
+  the real name to the candidate list.
+- **`buildAuthCommand()`** (`src/tools/toolCommands.ts`) emits PowerShell's `&` call
+  operator before a quoted Codex path only on `win32` — every POSIX shell (bash, zsh,
+  sh, fish) runs a quoted absolute path directly and treats a leading `&` as
+  "background this job," which is why the original Windows-only version broke the
+  moment it reached a Linux terminal (see the v0.4.1 changelog entry — that bug was
+  Windows-internal, this is the same command reaching a different shell).
+- **`resolveCodexSwitcherProfilesPath()`** (`src/profiles/migrate/codexSwitcherPath.ts`)
+  knows VS Code's globalStorage layout on both platforms (`%APPDATA%\Code\User\...` /
+  `~/.config/Code/User/...`).
+- **`ClaudeVault`/`CodexVault`** needed no change at all — both tools already read a
+  plain dotfile (`~/.claude/.credentials.json`, `~/.codex/auth.json`) on Linux, same
+  as Windows.
+- **macOS is not attempted.** Two independent problems would need solving together —
+  Claude Code stores credentials in the Keychain there instead of a file, which
+  `ClaudeVault` doesn't support, *and* the Codex binary's bin-subfolder name on macOS
+  is unverified the same way Linux's is — so a wrong guess there would fail for a
+  second, unrelated reason and be more confusing to debug than just not trying.
+
 ## Known limitations
 
 - **Attribution starts at install.** Historical usage recorded before AgentSwitch was
   installed has no associated account and is shown as an unattributed total.
 - **Claude's rate-limit window is an estimate**; Codex's is exact (see above).
-- **Windows-first.** On macOS, Claude Code stores credentials in the Keychain rather
-  than a file, which `ClaudeVault` does not yet support; the Codex binary resolution
-  is also Windows-path-shaped (`win32-x64`, `windows-x86_64`).
+- **No macOS support yet** — see "Platform support" above.
 - **Migrating from `vscode-codex-switcher`** imports account identities (name, email,
   plan) but not tokens — VS Code SecretStorage is namespaced per extension and cannot be
   read across extensions, so each imported account needs one re-authentication —

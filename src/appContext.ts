@@ -7,6 +7,7 @@ import { ClaudeVault } from './vaults/ClaudeVault';
 import { BackupStore } from './vaults/BackupStore';
 import { ProfileStore, type ToolId } from './profiles/ProfileStore';
 import { importCodexSwitcherProfiles } from './profiles/migrate/codexSwitcher';
+import { resolveCodexSwitcherProfilesPath } from './profiles/migrate/codexSwitcherPath';
 import { SwitchLog } from './attribution/SwitchLog';
 import { SwitchOrchestrator } from './switch/SwitchOrchestrator';
 import { UsageStore } from './usage/UsageStore';
@@ -53,12 +54,7 @@ export function buildAppContext(context: vscode.ExtensionContext): AppContext {
 const MIGRATION_FLAG_KEY = 'agentswitch.migratedCodexSwitcher';
 
 function codexSwitcherProfilesPath(): string | null {
-  // codex-switcher's globalStorage path is not exposed by any vscode API —
-  // there is no way to ask VS Code for another extension's storage
-  // location — so this is the known on-disk layout, Windows-only for now
-  // (see the Windows-first limitation in docs/design.md).
-  if (process.platform !== 'win32') return null;
-  return path.join(os.homedir(), 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', 'dondakeltd.vscode-codex-switcher', 'profiles.json');
+  return resolveCodexSwitcherProfilesPath(os.homedir(), process.platform);
 }
 
 /**

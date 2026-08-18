@@ -21,7 +21,8 @@ function extensionsDir(context: vscode.ExtensionContext): string {
  * terminal — never headlessly, since the device-code and browser handoff
  * is interactive and needs to be seen. Returns false (and shows its own
  * error) if the command couldn't be built, e.g. the Codex binary wasn't
- * found — see docs/design.md's "Windows-only assumption" limitation.
+ * found — see docs/design.md's platform-support notes (Windows and Linux
+ * are supported; macOS is not attempted yet).
  */
 export function launchAuthCommand(context: vscode.ExtensionContext, toolId: ToolId, verb: AuthVerb): boolean {
   let codexPath: string | null = null;
@@ -37,10 +38,12 @@ export function launchAuthCommand(context: vscode.ExtensionContext, toolId: Tool
   }
 
   const command = buildAuthCommand(toolId, verb, codexPath);
-  // Pinned to powershell.exe rather than the user's default profile: the
-  // Codex command uses PowerShell's "&" call operator (see toolCommands.ts),
-  // which is a syntax error in cmd.exe and means something else in bash.
-  // Windows-only for now — see docs/design.md's platform limitations.
+  // On win32, pinned to powershell.exe rather than the user's default
+  // profile: the Codex command uses PowerShell's "&" call operator (see
+  // toolCommands.ts), which is a syntax error in cmd.exe. Elsewhere,
+  // `undefined` uses the user's own default shell — buildAuthCommand()
+  // already emits plain-quoted (no "&") syntax there, which every common
+  // POSIX shell (bash, zsh, sh, fish) accepts identically.
   const terminal = vscode.window.createTerminal({
     name: `AgentSwitch: ${TOOL_LABEL[toolId]} ${verb}`,
     shellPath: process.platform === 'win32' ? 'powershell.exe' : undefined,

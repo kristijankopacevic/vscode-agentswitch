@@ -4,17 +4,16 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.4.3.** Login, logout, adding, and removing accounts are all built now —
+> **Status: v0.4.4.** Login, logout, adding, and removing accounts are all built now —
 > the extension was silently never registering with VS Code through v0.3, which is
 > why those looked broken; see the v0.3 → v0.4 notes below for what was actually a bug
 > versus what was genuinely missing. The logic layer (155 tests) is unit-tested; the VS
 > Code UI itself (status bar, quick pick, webview, terminal launching) is type-checked
 > and packaged but has not been interactively clicked through — install the `.vsix`
 > and try it. Known gaps: Codex cost isn't shown (tokens only — no pricing table yet),
-> credential storage is Windows-only for now (Claude Code uses the macOS Keychain
-> there, not a file), and login success can't be detected automatically — the
-> extension offers to save an account after launching login rather than knowing when
-> you've actually finished.
+> macOS isn't supported yet (Windows and Linux are), and login success can't be
+> detected automatically — the extension offers to save an account after launching
+> login rather than knowing when you've actually finished.
 >
 > **v0.3 → v0.4:** four real defects, found from a report of "can't log in, add, or
 > delete accounts":
@@ -46,6 +45,23 @@ separate Codex-only and Claude-only switchers.
 > `powershell.exe` explicitly so this doesn't depend on whatever shell happens to be
 > your default profile. Claude's login was unaffected (`claude auth login` is a bare
 > command, no quoting involved).
+>
+> **v0.4.3 → v0.4.4:** added Linux support — Windows was the only platform this ran on
+> before. `resolveCodexBinary()` now matches the Codex extension's `linux-x64` folder
+> instead of only `win32-x64`, `buildAuthCommand()` no longer emits PowerShell's `&`
+> call operator outside `win32` (bash/zsh/sh/fish all run a quoted path directly and
+> treat a leading `&` as "background this job," so the old command would have hit the
+> same class of parser error the v0.4.1 fix addressed on Windows, just in a different
+> shell), and the `codex-switcher` migration now also checks Linux's
+> `~/.config/Code/User/globalStorage` layout, not only Windows'
+> `%APPDATA%\Code\User\globalStorage`. `ClaudeVault`/`CodexVault` needed no changes —
+> both already read a plain dotfile on Linux, same as Windows. One honest caveat: the
+> exact folder name Codex's bin sits under on Linux (`linux-x86_64` vs `linux-x64`) is
+> an educated guess, not verified against a real install — if "AgentSwitch: Log In"
+> can't find the Codex CLI on your machine, that's most likely why; see
+> `docs/design.md`'s platform-support section for how to fix it. CI now runs the full
+> suite on both `windows-latest` and `ubuntu-latest`. macOS is still not attempted —
+> that needs Keychain support in `ClaudeVault` too, not just a path fix.
 >
 > **v0.4.1 → v0.4.2:** "Switch Account" could fail with `Cannot read properties of
 > undefined (reading 'windowMinutes')`. Cause: through v0.2, the same globalState key
