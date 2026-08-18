@@ -4,7 +4,7 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.4.2.** Login, logout, adding, and removing accounts are all built now —
+> **Status: v0.4.3.** Login, logout, adding, and removing accounts are all built now —
 > the extension was silently never registering with VS Code through v0.3, which is
 > why those looked broken; see the v0.3 → v0.4 notes below for what was actually a bug
 > versus what was genuinely missing. The logic layer (155 tests) is unit-tested; the VS
@@ -57,6 +57,13 @@ separate Codex-only and Claude-only switchers.
 > field's shape independently and treats anything malformed as "no data yet" rather
 > than crashing.
 >
+> **v0.4.2 → v0.4.3:** Codex's status bar entry only ever showed percent-remaining,
+> never how many tokens that came from — Claude's entry showed tokens but no
+> percentage. Added a Codex-side rolling token estimate (same rolling-buffer approach
+> already used for Claude's estimate, just mirrored for Codex's own events) so Codex's
+> status bar line now reads "5h ~4k tok · 83% left · 7d ~340k tok · 58% left": exact
+> percentage from Codex's own data, tokens estimated from recent sessions.
+>
 > **v0.2 → v0.3:** the status bar now shows both of Codex's rate-limit windows (5h
 > and weekly, as exact "% left") and both of Claude's (5h and 7d, as estimated token
 > counts — Claude has no exact feed, so it's tokens, never a fabricated percentage).
@@ -91,12 +98,15 @@ account is billing — so a switch **never touches `mcpOAuth`**; only `claudeAiO
    sign-in before it can be switched to, since tokens can't be read across
    extensions' SecretStorage.
 3. Three status bar items appear on the bottom-right (bottom-left in some themes):
-   **Codex: `<account>` · 5h _N_% left · 7d _N_% left**, **Claude: `<account>` · 5h
-   ~_N_k tok · 7d ~_N_k tok**, and **All Accounts** — click any of them.
-   - Codex's windows are exact percentages, straight from Codex's own rate-limit data.
-     Claude's are token counts, not percentages — Claude has no exact rate-limit feed
-     on disk, so there's no known cap to be a percentage *of*; showing a fake one would
-     be worse than showing the honest number.
+   **Codex: `<account>` · 5h ~_N_k tok · _N_% left · 7d ~_N_k tok · _N_% left**,
+   **Claude: `<account>` · 5h ~_N_k tok · 7d ~_N_k tok**, and **All Accounts** — click
+   any of them.
+   - Codex shows both halves: the percentage remaining is exact, straight from Codex's
+     own rate-limit data; the token count next to it is estimated from your recent
+     Codex sessions (Codex doesn't report a token count itself). Claude shows only
+     tokens, no percentage — Claude has no exact rate-limit feed on disk, so there's no
+     known cap to be a percentage *of*; showing a fake one would be worse than showing
+     the honest number.
    - Clicking Codex or Claude opens that tool's picker: switch, add the currently
      signed-in account, or remove one. The active account is marked **● Active**, and
      hovering either item shows every saved account for that tool plus the full

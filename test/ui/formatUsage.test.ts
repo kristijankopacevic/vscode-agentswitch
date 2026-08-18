@@ -16,23 +16,41 @@ describe('abbreviateTokens', () => {
 });
 
 describe('formatCodexWindows', () => {
-  it('shows both windows as percent remaining, labelled by duration', () => {
-    const text = formatCodexWindows({
-      primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 0 },
-      secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 0 },
-    });
+  it('shows both windows as tokens consumed plus percent remaining, labelled by duration', () => {
+    const text = formatCodexWindows(
+      {
+        primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 0 },
+        secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 0 },
+      },
+      4000,
+      340000,
+    );
 
-    expect(text).toBe('5h 83% left · 7d 58% left');
+    expect(text).toBe('5h ~4k tok · 83% left · 7d ~340k tok · 58% left');
   });
 
-  it('shows only the window that is present', () => {
-    const text = formatCodexWindows({ primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 0 }, secondary: null });
+  it('shows only the window that is present, matched to the right token bucket', () => {
+    const text = formatCodexWindows(
+      { primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 0 }, secondary: null },
+      4000,
+      340000,
+    );
 
-    expect(text).toBe('5h 83% left');
+    expect(text).toBe('5h ~4k tok · 83% left');
+  });
+
+  it('matches the 7d window to the 7d token bucket even when it is the only window present', () => {
+    const text = formatCodexWindows(
+      { primary: null, secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 0 } },
+      4000,
+      340000,
+    );
+
+    expect(text).toBe('7d ~340k tok · 58% left');
   });
 
   it('returns an empty string when no window data is available yet', () => {
-    expect(formatCodexWindows({ primary: null, secondary: null })).toBe('');
+    expect(formatCodexWindows({ primary: null, secondary: null }, 0, 0)).toBe('');
   });
 });
 

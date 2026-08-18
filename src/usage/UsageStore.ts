@@ -10,6 +10,7 @@ import { aggregateUsageEvents, mergeBreakdowns, emptyBreakdown, type UsageBreakd
 const BREAKDOWN_KEY = 'agentswitch.usageBreakdown';
 const RATE_LIMIT_KEY = 'agentswitch.codexRateLimit';
 const RECENT_CLAUDE_EVENTS_KEY = 'agentswitch.recentClaudeEvents';
+const RECENT_CODEX_EVENTS_KEY = 'agentswitch.recentCodexEvents';
 const RECENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // covers both the 5h and 7d windows we display
 
 /**
@@ -61,7 +62,8 @@ export class UsageStore {
     }
     if (sawAny) await this.state.update(RATE_LIMIT_KEY, { primary, secondary });
 
-    if (claudeEvents.length) await this.appendRecentClaudeEvents(claudeEvents);
+    if (claudeEvents.length) await this.appendRecentEvents(RECENT_CLAUDE_EVENTS_KEY, claudeEvents);
+    if (codexEvents.length) await this.appendRecentEvents(RECENT_CODEX_EVENTS_KEY, codexEvents);
 
     const incoming = aggregateUsageEvents([...claudeEvents, ...codexEvents], this.activeProfileAt);
     const merged = mergeBreakdowns(this.state.get<UsageBreakdown>(BREAKDOWN_KEY) ?? emptyBreakdown(), incoming);
@@ -80,16 +82,30 @@ export class UsageStore {
 
   /** Estimated only — see docs/design.md for why Claude has no exact local rate-limit feed. */
   getClaudeRollingEstimate(windowMs: number, nowIso: string): UsageBucket {
+    return this.rollingEstimate(RECENT_CLAUDE_EVENTS_KEY, windowMs, nowIso);
+  }
+
+  /**
+   * Codex's rate-limit windows report an exact percentage but no token
+   * count, so this fills in "how much did that percentage cost" the same
+   * way Claude's estimate does — a rolling sum over the same 5h/7d buckets
+   * the status bar and dashboard already use for Claude.
+   */
+  getCodexRollingEstimate(windowMs: number, nowIso: string): UsageBucket {
+    return this.rollingEstimate(RECENT_CODEX_EVENTS_KEY, windowMs, nowIso);
+  }
+
+  private rollingEstimate(key: string, windowMs: number, nowIso: string): UsageBucket {
     const cutoff = new Date(new Date(nowIso).getTime() - windowMs).toISOString();
-    const recent = (this.state.get<UsageEvent[]>(RECENT_CLAUDE_EVENTS_KEY) ?? []).filter((e) => e.ts >= cutoff);
+    const recent = (this.state.get<UsageEvent[]>(key) ?? []).filter((e) => e.ts >= cutoff);
     return aggregateUsageEvents(recent, () => undefined).overall;
   }
 
-  private async appendRecentClaudeEvents(events: UsageEvent[]): Promise<void> {
+  private async appendRecentEvents(key: string, events: UsageEvent[]): Promise<void> {
     const newestTs = events.reduce((max, e) => (e.ts > max ? e.ts : max), events[0].ts);
     const cutoff = new Date(new Date(newestTs).getTime() - RECENT_RETENTION_MS).toISOString();
-    const existing = this.state.get<UsageEvent[]>(RECENT_CLAUDE_EVENTS_KEY) ?? [];
+    const existing = this.state.get<UsageEvent[]>(key) ?? [];
     const kept = [...existing, ...events].filter((e) => e.ts >= cutoff);
-    await this.state.update(RECENT_CLAUDE_EVENTS_KEY, kept);
+    await this.state.update(key, kept);
   }
 }

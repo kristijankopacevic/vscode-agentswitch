@@ -144,4 +144,20 @@ describe('UsageStore', () => {
 
     expect(estimate.inputTokens).toBe(100); // only the Aug 17 event is within 6h of "now"
   });
+
+  it('getCodexRollingEstimate() only counts events inside the given window', async () => {
+    fs.writeFileSync(
+      codexFile,
+      [codexLine('2026-08-10T00:00:00.000Z', 1000), codexLine('2026-08-17T09:00:00.000Z', 50)].join('\n') + '\n',
+    );
+    await store.refresh([], [codexFile]);
+
+    const estimate = store.getCodexRollingEstimate(6 * 60 * 60 * 1000, '2026-08-17T10:00:00.000Z');
+
+    expect(estimate.inputTokens).toBe(50); // only the Aug 17 event is within 6h of "now"
+  });
+
+  it('getCodexRollingEstimate() returns zero before any Codex usage has been recorded', () => {
+    expect(store.getCodexRollingEstimate(6 * 60 * 60 * 1000, '2026-08-17T10:00:00.000Z').inputTokens).toBe(0);
+  });
 });

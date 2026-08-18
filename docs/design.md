@@ -31,11 +31,17 @@ Usage and rate-limit data are both fully local:
 - Codex: per-session truth in `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, `event_msg`
   lines of type `token_count` carrying `info.total_token_usage` **and** up to two real
   windows, `rate_limits.{primary, secondary}.{used_percent, window_minutes,
-  resets_at}` — Codex's rate-limit windows are exact, no estimate needed.
-  `describeWindow()` (`src/usage/windowLabel.ts`) labels each by its own
-  `windowMinutes` (≤6h → "5h", ≥6d → "7d") rather than assuming position, since which
-  slot carries which duration isn't guaranteed across plans. `UsageStore` keeps the
-  last known value for each side independently — a refresh where only `primary`
+  resets_at}` — the *percentage remaining* is exact, straight from Codex's own data, no
+  estimate needed. Codex reports no token count alongside that percentage, though, so
+  `UsageStore.getCodexRollingEstimate()` fills that half in the same way Claude's
+  estimate does — a rolling sum over a buffer of recent Codex events
+  (`agentswitch.recentCodexEvents`), matched to the 5h/7d window it's shown next to.
+  `formatCodexWindows()` labels the pairing "% exact from Codex, tokens estimated from
+  recent sessions" so the two halves of one line are never implied to have the same
+  confidence. `describeWindow()` (`src/usage/windowLabel.ts`) labels each window by its
+  own `windowMinutes` (≤6h → "5h", ≥6d → "7d") rather than assuming position, since
+  which slot carries which duration isn't guaranteed across plans. `UsageStore` keeps
+  the last known value for each side independently — a refresh where only `primary`
   reports doesn't erase an already-known `secondary`. Codex writes no cost figures —
   tokens only, no cost. A pricing table with a refresh command is deferred to a
   follow-up; the dashboard says so explicitly rather than showing a silently-missing
@@ -147,7 +153,7 @@ signed in yet" is a value the flow needs to check.
 Everything in `src/vaults`, `src/profiles`, `src/attribution`, `src/switch`,
 `src/usage`, `src/tools`, `src/ui/switchActions.ts`, `src/ui/accountActions.ts`,
 `src/ui/accountRows.ts`, `src/ui/formatUsage.ts`, `src/ui/errorReporting.ts`, and
-`src/ui/dashboard/render.ts` is unit-tested (155 tests) without a `vscode` import, run
+`src/ui/dashboard/render.ts` is unit-tested (165 tests) without a `vscode` import, run
 against synthetic fixtures. `src/appContext.ts`, `src/ui/statusBar.ts`,
 `src/ui/switchQuickPick.ts`, `src/ui/authLauncher.ts`, `src/ui/authFlows.ts`,
 `src/ui/dashboard/panel.ts`, and `src/extension.ts` depend on the real `vscode`

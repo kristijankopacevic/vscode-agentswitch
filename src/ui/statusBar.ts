@@ -40,11 +40,18 @@ function accountLines(app: AppContext, toolId: ToolId): string[] {
 }
 
 export function updateStatusBarItems(items: StatusBarItems, app: AppContext): void {
+  const now = new Date().toISOString();
   const codexLimits = app.usage.getCodexRateLimits();
-  const codexSuffix = formatCodexWindows(codexLimits);
+  const codexFiveHour = app.usage.getCodexRollingEstimate(FIVE_HOURS_MS, now);
+  const codexSevenDay = app.usage.getCodexRollingEstimate(SEVEN_DAYS_MS, now);
+  const codexSuffix = formatCodexWindows(
+    codexLimits,
+    codexFiveHour.inputTokens + codexFiveHour.outputTokens,
+    codexSevenDay.inputTokens + codexSevenDay.outputTokens,
+  );
 
-  const fiveHour = app.usage.getClaudeRollingEstimate(FIVE_HOURS_MS, new Date().toISOString());
-  const sevenDay = app.usage.getClaudeRollingEstimate(SEVEN_DAYS_MS, new Date().toISOString());
+  const fiveHour = app.usage.getClaudeRollingEstimate(FIVE_HOURS_MS, now);
+  const sevenDay = app.usage.getClaudeRollingEstimate(SEVEN_DAYS_MS, now);
   const fiveHourTokens = fiveHour.inputTokens + fiveHour.outputTokens;
   const sevenDayTokens = sevenDay.inputTokens + sevenDay.outputTokens;
   const claudeSuffix = formatClaudeWindows(fiveHourTokens, sevenDayTokens);
@@ -59,7 +66,7 @@ export function updateStatusBarItems(items: StatusBarItems, app: AppContext): vo
     if (toolId === 'codex') {
       lines.push(
         codexLimits.primary || codexLimits.secondary
-          ? `Rate limit — exact, from Codex's own data: ${formatCodexWindows(codexLimits) || '—'}`
+          ? `Rate limit (% exact from Codex, tokens estimated from recent sessions): ${codexSuffix || '—'}`
           : 'Rate limit: no data yet.',
       );
     } else {
