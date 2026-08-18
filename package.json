@@ -2,7 +2,7 @@
   "name": "agentswitch",
   "displayName": "AgentSwitch",
   "description": "Switch accounts for Codex and Claude Code (extension + CLI) and track usage, cost, and rate limits.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "kristijankopacevic",
   "license": "MIT",
   "private": true,
@@ -17,13 +17,19 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "agentswitch.switchAccount",
         "title": "AgentSwitch: Switch Account"
+      },
+      {
+        "command": "agentswitch.showAllAccounts",
+        "title": "AgentSwitch: Show All Accounts"
       },
       {
         "command": "agentswitch.showUsage",

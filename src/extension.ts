@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { buildAppContext, migrateCodexSwitcherIfNeeded, type AppContext } from './appContext';
 import { createStatusBarItems, updateStatusBarItems } from './ui/statusBar';
-import { showSwitchAccountFlow } from './ui/switchQuickPick';
+import { showSwitchAccountFlow, showAllAccountsFlow } from './ui/switchQuickPick';
 import { showDashboard, refreshDashboardIfOpen } from './ui/dashboard/panel';
 import { listClaudeTranscriptFiles, listCodexRolloutFiles } from './usage/discoverFiles';
 
@@ -24,8 +24,12 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     statusBarItems.codex,
     statusBarItems.claude,
+    statusBarItems.allAccounts,
     vscode.commands.registerCommand('agentswitch.switchAccount', async () => {
       await showSwitchAccountFlow(app, () => updateStatusBarItems(statusBarItems, app));
+    }),
+    vscode.commands.registerCommand('agentswitch.showAllAccounts', async () => {
+      await showAllAccountsFlow(app, () => updateStatusBarItems(statusBarItems, app));
     }),
     vscode.commands.registerCommand('agentswitch.showUsage', async () => {
       await refreshUsage(app);

@@ -4,12 +4,17 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.1.** Switching, usage tracking (per-account, per-project, rate limits),
-> and the dashboard are built. The logic layer (83 tests) is unit-tested; the VS Code
+> **Status: v0.2.** Switching, usage tracking (per-account, per-project, rate limits),
+> and the dashboard are built. The logic layer (89 tests) is unit-tested; the VS Code
 > UI itself (status bar, quick pick, webview) is type-checked and packaged but has not
 > been interactively clicked through — install the `.vsix` and try it. Known gaps:
 > Codex cost isn't shown (tokens only — no pricing table yet), and credential storage
 > is Windows-only for now (Claude Code uses the macOS Keychain there, not a file).
+>
+> **v0.1 → v0.2:** `activationEvents` was empty in v0.1, so the extension never
+> activated on its own and the status bar items never appeared. Fixed with
+> `onStartupFinished`. Also added a third status bar item and an all-accounts view
+> across both tools, and active-account markers in every picker.
 
 ## Why one extension
 
@@ -32,8 +37,15 @@ account is billing — so a switch **never touches `mcpOAuth`**; only `claudeAiO
    identities are imported automatically on first activation — each needs one
    sign-in before it can be switched to, since tokens can't be read across
    extensions' SecretStorage.
-3. **AgentSwitch: Switch Account** — pick Codex or Claude Code, then switch, add the
-   currently signed-in account, or remove one.
+3. Three status bar items appear on the bottom-right (bottom-left in some themes):
+   **Codex: `<account>`**, **Claude: `<account>`**, and **All Accounts** — click any of
+   them.
+   - Clicking Codex or Claude opens that tool's picker: switch, add the currently
+     signed-in account, or remove one. The active account is marked **● Active**, and
+     hovering either item shows every saved account for that tool.
+   - Clicking **All Accounts** (or running **AgentSwitch: Show All Accounts**) lists
+     every saved account for *both* tools together, active ones marked — pick one to
+     switch straight to it.
 4. **AgentSwitch: Show Usage Dashboard** — totals, rate-limit windows, per-account and
    per-project breakdowns, and switch history.
 5. After switching, reload the window and restart any running CLI session for that
