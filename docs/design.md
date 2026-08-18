@@ -111,6 +111,15 @@ async — so `showLoginFlow()` *offers* to save the result once the terminal com
 launched, rather than polling for completion. `claude auth status --json` /
 `codex login status` exist and could make this automatic in a follow-up.
 
+**The Codex command needs PowerShell's call operator.** `buildAuthCommand()` quotes the
+resolved binary path (it may contain spaces, e.g. `Program Files`), and a bare quoted
+string used as a command is invalid syntax in PowerShell unless prefixed with `&` — a
+plain `"<path>" login` throws `Unexpected token 'login'` at the parser, not a
+missing-binary error. `launchAuthCommand()` therefore pins the terminal it creates to
+`shellPath: 'powershell.exe'` on Windows rather than trusting the user's default shell
+profile (which could be cmd.exe or a non-PowerShell default), so the `&`-prefixed
+command it sends is always valid in the shell that receives it.
+
 **`showAddAnotherAccountFlow()`** is the guided path from one account to two: save the
 current one if it isn't tracked yet (skipping straight to logout if it already is),
 launch logout, launch login, offer to save the new one. Every step is a confirmable

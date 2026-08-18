@@ -37,7 +37,14 @@ export function launchAuthCommand(context: vscode.ExtensionContext, toolId: Tool
   }
 
   const command = buildAuthCommand(toolId, verb, codexPath);
-  const terminal = vscode.window.createTerminal(`AgentSwitch: ${TOOL_LABEL[toolId]} ${verb}`);
+  // Pinned to powershell.exe rather than the user's default profile: the
+  // Codex command uses PowerShell's "&" call operator (see toolCommands.ts),
+  // which is a syntax error in cmd.exe and means something else in bash.
+  // Windows-only for now — see docs/design.md's platform limitations.
+  const terminal = vscode.window.createTerminal({
+    name: `AgentSwitch: ${TOOL_LABEL[toolId]} ${verb}`,
+    shellPath: process.platform === 'win32' ? 'powershell.exe' : undefined,
+  });
   terminal.show();
   terminal.sendText(command);
   return true;

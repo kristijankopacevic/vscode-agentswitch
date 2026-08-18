@@ -19,7 +19,11 @@ export function buildAuthCommand(toolId: ToolId, verb: AuthVerb, codexBinaryPath
   if (!codexBinaryPath) {
     throw new Error('No Codex binary path was resolved — cannot build a Codex auth command.');
   }
-  const quoted = `"${codexBinaryPath}"`;
+  // The leading "&" is PowerShell's call operator — without it, a quoted
+  // path used as a command is a parser error ("Unexpected token 'login'"),
+  // not a missing-binary problem. The terminal that runs this is always
+  // pinned to powershell.exe (see authLauncher.ts) so this is safe.
+  const quoted = `& "${codexBinaryPath}"`;
   if (verb === 'status') return `${quoted} login status`;
   return `${quoted} ${verb}`;
 }

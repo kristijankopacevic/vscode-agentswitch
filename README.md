@@ -4,7 +4,7 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.4.** Login, logout, adding, and removing accounts are all built now —
+> **Status: v0.4.1.** Login, logout, adding, and removing accounts are all built now —
 > the extension was silently never registering with VS Code through v0.3, which is
 > why those looked broken; see the v0.3 → v0.4 notes below for what was actually a bug
 > versus what was genuinely missing. The logic layer (155 tests) is unit-tested; the VS
@@ -37,6 +37,15 @@ separate Codex-only and Claude-only switchers.
 > VS Code's extension manifest, so **no status bar items and no commands existed at
 > all** for a while — that's most of why things looked unreachable rather than broken.
 > Reload the window after installing to make sure a fresh version actually loads.
+>
+> **v0.4 → v0.4.1:** the Codex login/logout command itself was broken — it sent
+> `"<path>\codex.exe" login` straight into the integrated terminal, which is a
+> PowerShell parser error (`Unexpected token 'login'`) because a quoted path used as a
+> command needs the `&` call operator in front of it. Fixed: the command now reads
+> `& "<path>\codex.exe" login`, and the terminal AgentSwitch opens is pinned to
+> `powershell.exe` explicitly so this doesn't depend on whatever shell happens to be
+> your default profile. Claude's login was unaffected (`claude auth login` is a bare
+> command, no quoting involved).
 >
 > **v0.2 → v0.3:** the status bar now shows both of Codex's rate-limit windows (5h
 > and weekly, as exact "% left") and both of Claude's (5h and 7d, as estimated token
