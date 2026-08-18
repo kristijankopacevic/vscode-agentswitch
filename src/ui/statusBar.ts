@@ -2,9 +2,12 @@ import * as vscode from 'vscode';
 import type { ToolId } from '../profiles/ProfileStore';
 import type { AppContext } from '../appContext';
 import { buildAccountRows } from './accountRows';
+import { formatCodexWindows, formatClaudeWindows, abbreviateTokens } from './formatUsage';
 
 const TOOL_LABEL: Record<ToolId, string> = { codex: 'Codex', claude: 'Claude' };
 const TOOL_ICON: Record<ToolId, string> = { codex: '$(rocket)', claude: '$(sparkle)' };
+const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface StatusBarItems {
   codex: vscode.StatusBarItem;
@@ -30,44 +33,45 @@ export function createStatusBarItems(): StatusBarItems {
   return { codex, claude, allAccounts };
 }
 
-function toolTooltip(app: AppContext, toolId: ToolId): string {
+function accountLines(app: AppContext, toolId: ToolId): string[] {
   const rows = buildAccountRows(app.profiles.list(toolId), (t) => app.orchestrator.activeProfileId(t));
-  const lines = [`AgentSwitch — ${TOOL_LABEL[toolId]} accounts:`];
-  if (rows.length === 0) {
-    lines.push('(none saved — click to add the currently signed-in account)');
-  } else {
-    for (const row of rows) {
-      lines.push(`${row.isActive ? '● ' : '  '}${row.label}${row.needsReauth ? ' (needs sign-in)' : ''}`);
-    }
-  }
-  lines.push('', 'Click to switch, add, or remove an account.');
-  return lines.join('\n');
+  if (rows.length === 0) return ['(none saved — click to add the currently signed-in account)'];
+  return rows.map((row) => `${row.isActive ? '● ' : '  '}${row.label}${row.needsReauth ? ' (needs sign-in)' : ''}`);
 }
 
 export function updateStatusBarItems(items: StatusBarItems, app: AppContext): void {
+  const codexLimits = app.usage.getCodexRateLimits();
+  const codexSuffix = formatCodexWindows(codexLimits);
+
+  const fiveHour = app.usage.getClaudeRollingEstimate(FIVE_HOURS_MS, new Date().toISOString());
+  const sevenDay = app.usage.getClaudeRollingEstimate(SEVEN_DAYS_MS, new Date().toISOString());
+  const fiveHourTokens = fiveHour.inputTokens + fiveHour.outputTokens;
+  const sevenDayTokens = sevenDay.inputTokens + sevenDay.outputTokens;
+  const claudeSuffix = formatClaudeWindows(fiveHourTokens, sevenDayTokens);
+
   for (const toolId of ['codex', 'claude'] as ToolId[]) {
     const activeId = app.orchestrator.activeProfileId(toolId);
     const profile = activeId ? app.profiles.get(activeId) : undefined;
     const label = profile ? profile.label : 'no account';
+    const suffix = toolId === 'codex' ? codexSuffix : claudeSuffix;
 
-    let suffix = '';
+    const lines = [`AgentSwitch — ${TOOL_LABEL[toolId]} accounts:`, ...accountLines(app, toolId), ''];
     if (toolId === 'codex') {
-      const rateLimit = app.usage.getCodexRateLimit();
-      if (rateLimit) suffix = ` · ${rateLimit.usedPercent}%`;
+      lines.push(
+        codexLimits.primary || codexLimits.secondary
+          ? `Rate limit — exact, from Codex's own data: ${formatCodexWindows(codexLimits) || '—'}`
+          : 'Rate limit: no data yet.',
+      );
     } else {
-      const estimate = app.usage.getClaudeRollingEstimate(5 * 60 * 60 * 1000, new Date().toISOString());
-      const total = estimate.inputTokens + estimate.outputTokens;
-      if (total > 0) suffix = ` · ~${Math.round(total / 1000)}k tok/5h`;
+      lines.push(
+        `Estimated usage (Claude has no exact rate-limit feed on disk): 5h ~${abbreviateTokens(fiveHourTokens)} tok · 7d ~${abbreviateTokens(sevenDayTokens)} tok`,
+      );
     }
+    lines.push('', 'Click to switch, add, or remove an account.');
 
     const item = items[toolId];
-    item.text = `${TOOL_ICON[toolId]} ${TOOL_LABEL[toolId]}: ${label}${suffix}`;
-    item.tooltip = new vscode.MarkdownString(
-      toolTooltip(app, toolId) +
-        (toolId === 'codex'
-          ? '\n\n(percentage is exact, from Codex\'s own rate-limit data)'
-          : '\n\n(token estimate — Claude has no exact rate-limit feed on disk)'),
-    );
+    item.text = `${TOOL_ICON[toolId]} ${TOOL_LABEL[toolId]}: ${label}${suffix ? ` · ${suffix}` : ''}`;
+    item.tooltip = new vscode.MarkdownString(lines.join('\n'));
   }
 
   const totalAccounts = app.profiles.list().length;

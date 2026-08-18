@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import type { ToolId } from '../profiles/ProfileStore';
-import { NeedsReauthError } from '../switch/SwitchOrchestrator';
 import type { AppContext } from '../appContext';
 import { buildAccountRows, type AccountRow } from './accountRows';
+import { performSwitch } from './switchActions';
 
 const TOOL_LABEL: Record<ToolId, string> = { codex: 'Codex', claude: 'Claude Code' };
 
@@ -97,34 +97,26 @@ async function removeAccount(app: AppContext, toolId: ToolId, onChanged: () => v
 }
 
 async function switchTo(app: AppContext, row: AccountRow, onChanged: () => void): Promise<void> {
-  const toolId = row.toolId;
-  const label = row.label;
+  const result = await performSwitch(app, row.toolId, row.profileId);
 
-  if (row.isActive) {
-    void vscode.window.showInformationMessage(`"${label}" is already the active ${TOOL_LABEL[toolId]} account.`);
+  if (result.kind === 'already-active') {
+    void vscode.window.showInformationMessage(`"${result.label}" is already the active ${TOOL_LABEL[result.toolId]} account.`);
     return;
   }
-  if (row.needsReauth) {
+  if (result.kind === 'needs-reauth') {
     void vscode.window.showWarningMessage(
-      `"${label}" was imported without saved credentials and needs one sign-in. Sign into that account in the ${TOOL_LABEL[toolId]} app or CLI, then use "Add current account…" to save it.`,
+      `"${result.label}" was imported without saved credentials and needs one sign-in. Sign into that account in the ${TOOL_LABEL[result.toolId]} app or CLI, then use "Add current account…" to save it.`,
     );
     return;
   }
-
-  try {
-    await app.orchestrator.switchTo(toolId, row.profileId);
-    onChanged();
-    const choice = await vscode.window.showInformationMessage(
-      `Switched ${TOOL_LABEL[toolId]} to "${label}". Reload the window and restart any running ${TOOL_LABEL[toolId]} CLI sessions to pick it up — both cache credentials in memory and can overwrite this switch if left running.`,
-      'Reload Window',
-    );
-    if (choice === 'Reload Window') void vscode.commands.executeCommand('workbench.action.reloadWindow');
-  } catch (err) {
-    if (err instanceof NeedsReauthError) {
-      // Defensive: buildAccountRows should have already caught this via needsReauth above.
-      void vscode.window.showWarningMessage(`"${label}" needs one sign-in before it can be switched to.`);
-      return;
-    }
-    throw err;
+  if (result.kind === 'not-found') {
+    return; // the picker's list was stale; nothing to do
   }
+
+  onChanged();
+  const choice = await vscode.window.showInformationMessage(
+    `Switched ${TOOL_LABEL[result.toolId]} to "${result.label}". Reload the window and restart any running ${TOOL_LABEL[result.toolId]} CLI sessions to pick it up — both cache credentials in memory and can overwrite this switch if left running.`,
+    'Reload Window',
+  );
+  if (choice === 'Reload Window') void vscode.commands.executeCommand('workbench.action.reloadWindow');
 }

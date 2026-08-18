@@ -6,12 +6,33 @@ export interface CodexRateLimit {
   resetsAt: number;
 }
 
-export interface ParsedRolloutLine {
-  event: UsageEvent | null;
-  rateLimit: CodexRateLimit | null;
+/**
+ * Codex reports up to two windows. Which duration lands in `primary` vs.
+ * `secondary` isn't assumed here — describeWindow() classifies each by its
+ * own windowMinutes rather than by position, since a plan with only one
+ * window populates it under `primary` regardless of its length.
+ */
+export interface CodexRateLimits {
+  primary: CodexRateLimit | null;
+  secondary: CodexRateLimit | null;
 }
 
-const NO_MATCH: ParsedRolloutLine = { event: null, rateLimit: null };
+export interface ParsedRolloutLine {
+  event: UsageEvent | null;
+  rateLimits: CodexRateLimits | null;
+}
+
+const NO_MATCH: ParsedRolloutLine = { event: null, rateLimits: null };
+
+function parseWindow(raw: unknown): CodexRateLimit | null {
+  const w = raw as Record<string, unknown> | null | undefined;
+  if (!w || typeof w.used_percent !== 'number') return null;
+  return {
+    usedPercent: w.used_percent,
+    windowMinutes: Number(w.window_minutes ?? 0),
+    resetsAt: Number(w.resets_at ?? 0),
+  };
+}
 
 /**
  * Parses one line of a `~/.codex/sessions/.../rollout-*.jsonl` file. Only
@@ -50,17 +71,10 @@ export function parseCodexRolloutLine(line: string): ParsedRolloutLine {
         }
       : null;
 
-  const primary = (payload.rate_limits as Record<string, unknown> | null | undefined)?.primary as
-    | Record<string, unknown>
-    | undefined;
-  const rateLimit: CodexRateLimit | null =
-    primary && typeof primary.used_percent === 'number'
-      ? {
-          usedPercent: primary.used_percent,
-          windowMinutes: Number(primary.window_minutes ?? 0),
-          resetsAt: Number(primary.resets_at ?? 0),
-        }
-      : null;
+  const rawLimits = payload.rate_limits as Record<string, unknown> | null | undefined;
+  const rateLimits: CodexRateLimits | null = rawLimits
+    ? { primary: parseWindow(rawLimits.primary), secondary: parseWindow(rawLimits.secondary) }
+    : null;
 
-  return { event, rateLimit };
+  return { event, rateLimits };
 }

@@ -3,12 +3,24 @@ import { renderDashboardHtml, type DashboardData } from '../../../src/ui/dashboa
 
 const DATA: DashboardData = {
   totals: { codexTokens: 12345, claudeTokens: 67890, claudeCostUSD: 4.32 },
-  codexRateLimit: { usedPercent: 17, windowMinutes: 10080 },
+  unattributedTokens: 10,
+  codexRateLimits: {
+    primary: { usedPercent: 17, windowMinutes: 300 },
+    secondary: { usedPercent: 42, windowMinutes: 10080 },
+  },
   claudeRollingEstimate: { fiveHourTokens: 4000, sevenDayTokens: 50000 },
-  byProfile: [
-    { label: 'Work', toolLabel: 'Codex', inputTokens: 1000, outputTokens: 200 },
-    { label: 'Personal', toolLabel: 'Claude', inputTokens: 2000, outputTokens: 300 },
-    { label: 'Unattributed (before AgentSwitch)', toolLabel: 'Codex + Claude', inputTokens: 10, outputTokens: 1 },
+  byAccount: [
+    { profileId: 'p-work', toolId: 'codex', label: 'Work', isActive: true, needsReauth: false, inputTokens: 1000, outputTokens: 200 },
+    {
+      profileId: 'p-personal',
+      toolId: 'claude',
+      label: 'Personal',
+      isActive: false,
+      needsReauth: false,
+      inputTokens: 2000,
+      outputTokens: 300,
+    },
+    { profileId: 'p-new', toolId: 'codex', label: 'Imported', isActive: false, needsReauth: true, inputTokens: 0, outputTokens: 0 },
   ],
   byProject: [{ project: 'my-repo', inputTokens: 500, outputTokens: 100 }],
   switchHistory: [
@@ -26,26 +38,68 @@ describe('renderDashboardHtml', () => {
     expect(html).toContain('$4.32');
   });
 
-  it('includes the Codex exact rate-limit percentage', () => {
+  it('shows both Codex rate-limit windows, labelled by duration, as exact percentages', () => {
     const html = renderDashboardHtml(DATA, 'test-nonce');
 
+    expect(html).toContain('5h');
     expect(html).toContain('17%');
+    expect(html).toContain('7d');
+    expect(html).toContain('42%');
   });
 
-  it("labels the Claude rolling window as an estimate, and its tile value is a token count, never a percentage", () => {
+  it("shows both Claude windows as token counts, and labels them as an estimate, never a percentage in that tile", () => {
     const html = renderDashboardHtml(DATA, 'test-nonce');
 
     expect(html.toLowerCase()).toContain('estimate');
-    const claudeTile = html.match(/Claude — estimate[\s\S]*?<div class="tile-value">([^<]*)<\/div>/);
-    expect(claudeTile?.[1]).toContain('tok');
-    expect(claudeTile?.[1]).not.toContain('%');
+    const claudeSection = html.slice(html.indexOf('Claude — estimate'), html.indexOf('</div>', html.indexOf('Claude — estimate')) + 200);
+    expect(claudeSection).toContain('4,000');
+    expect(claudeSection).toContain('50,000');
   });
 
-  it('includes one row per profile and per project', () => {
+  it('lists every saved account, including one with no recorded usage yet', () => {
     const html = renderDashboardHtml(DATA, 'test-nonce');
 
     expect(html).toContain('Work');
     expect(html).toContain('Personal');
+    expect(html).toContain('Imported');
+  });
+
+  it('marks the active account and does not give it a switch button', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    expect(html).toContain('Active');
+    const row = html.slice(html.indexOf('Work'), html.indexOf('Personal'));
+    expect(row).not.toContain('data-action="switch"');
+  });
+
+  it('gives a signed-in, inactive account a switch button carrying its profile id and tool', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    const row = html.slice(html.indexOf('Personal'), html.indexOf('Imported'));
+    expect(row).toContain('data-action="switch"');
+    expect(row).toContain('data-profile-id="p-personal"');
+    expect(row).toContain('data-tool-id="claude"');
+  });
+
+  it('marks an account needing sign-in instead of giving it a switch button', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    const start = html.indexOf('Imported');
+    const row = html.slice(start, html.indexOf('</tr>', start));
+    expect(row.toLowerCase()).toContain('sign-in');
+    expect(row).not.toContain('data-action="switch"');
+  });
+
+  it('shows unattributed usage as a note, not as a fake account row', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    expect(html.toLowerCase()).toContain('unattributed');
+    expect(html).not.toMatch(/<td>\s*unattributed/i);
+  });
+
+  it('includes one row per project', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
     expect(html).toContain('my-repo');
   });
 
@@ -78,9 +132,10 @@ describe('renderDashboardHtml', () => {
   it('renders without throwing when there is no data yet', () => {
     const empty: DashboardData = {
       totals: { codexTokens: 0, claudeTokens: 0, claudeCostUSD: 0 },
-      codexRateLimit: null,
+      unattributedTokens: 0,
+      codexRateLimits: { primary: null, secondary: null },
       claudeRollingEstimate: { fiveHourTokens: 0, sevenDayTokens: 0 },
-      byProfile: [],
+      byAccount: [],
       byProject: [],
       switchHistory: [],
     };

@@ -42,29 +42,64 @@ describe('parseCodexRolloutLine', () => {
     expect(event).toBeNull();
   });
 
-  it('extracts the primary rate-limit window when present', () => {
+  it('extracts both the primary (short) and secondary (weekly) rate-limit windows when present', () => {
     const line = JSON.stringify({
       timestamp: '2026-08-11T12:13:49.063Z',
       type: 'event_msg',
       payload: {
         type: 'token_count',
         info: null,
-        rate_limits: { primary: { used_percent: 42, window_minutes: 10080, resets_at: 1787055227 } },
+        rate_limits: {
+          primary: { used_percent: 17, window_minutes: 300, resets_at: 1787000000 },
+          secondary: { used_percent: 42, window_minutes: 10080, resets_at: 1787055227 },
+        },
       },
     });
 
-    const { rateLimit } = parseCodexRolloutLine(line);
+    const { rateLimits } = parseCodexRolloutLine(line);
 
-    expect(rateLimit).toEqual({ usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 });
+    expect(rateLimits).toEqual({
+      primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 1787000000 },
+      secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 },
+    });
+  });
+
+  it('returns a null secondary when only primary is present, without throwing', () => {
+    const line = JSON.stringify({
+      timestamp: '2026-08-11T12:13:49.063Z',
+      type: 'event_msg',
+      payload: {
+        type: 'token_count',
+        info: null,
+        rate_limits: { primary: { used_percent: 42, window_minutes: 10080, resets_at: 1787055227 }, secondary: null },
+      },
+    });
+
+    const { rateLimits } = parseCodexRolloutLine(line);
+
+    expect(rateLimits).toEqual({
+      primary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 },
+      secondary: null,
+    });
+  });
+
+  it('returns null rateLimits when rate_limits itself is null', () => {
+    const line = JSON.stringify({
+      timestamp: '2026-08-11T12:13:49.063Z',
+      type: 'event_msg',
+      payload: { type: 'token_count', info: null, rate_limits: null },
+    });
+
+    expect(parseCodexRolloutLine(line).rateLimits).toBeNull();
   });
 
   it('returns null for a line that is not a token_count event', () => {
     const line = JSON.stringify({ timestamp: '2026-08-11T12:13:49.063Z', type: 'event_msg', payload: { type: 'task_started' } });
 
-    expect(parseCodexRolloutLine(line)).toEqual({ event: null, rateLimit: null });
+    expect(parseCodexRolloutLine(line)).toEqual({ event: null, rateLimits: null });
   });
 
   it('returns nulls for unparseable JSON rather than throwing', () => {
-    expect(parseCodexRolloutLine('not json')).toEqual({ event: null, rateLimit: null });
+    expect(parseCodexRolloutLine('not json')).toEqual({ event: null, rateLimits: null });
   });
 });

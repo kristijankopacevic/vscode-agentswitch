@@ -4,7 +4,7 @@ import type { UsageEvent } from './UsageEvent';
 import type { ClaudeTranscriptFile } from './discoverFiles';
 import { UsageIndex } from './UsageIndex';
 import { parseClaudeTranscriptLine } from './ClaudeUsageReader';
-import { parseCodexRolloutLine, type CodexRateLimit } from './CodexUsageReader';
+import { parseCodexRolloutLine, type CodexRateLimits } from './CodexUsageReader';
 import { aggregateUsageEvents, mergeBreakdowns, emptyBreakdown, type UsageBreakdown, type UsageBucket } from './aggregate';
 
 const BREAKDOWN_KEY = 'agentswitch.usageBreakdown';
@@ -41,15 +41,25 @@ export class UsageStore {
     }
 
     const codexEvents: UsageEvent[] = [];
-    let latestRateLimit: CodexRateLimit | null = null;
+    const persisted = this.getCodexRateLimits();
+    let primary = persisted.primary;
+    let secondary = persisted.secondary;
+    let sawAny = false;
     for (const path of codexFiles) {
       for (const line of await this.codexIndex.pollNewLines(path)) {
-        const { event, rateLimit } = parseCodexRolloutLine(line);
+        const { event, rateLimits } = parseCodexRolloutLine(line);
         if (event) codexEvents.push(event);
-        if (rateLimit) latestRateLimit = rateLimit;
+        if (rateLimits?.primary) {
+          primary = rateLimits.primary;
+          sawAny = true;
+        }
+        if (rateLimits?.secondary) {
+          secondary = rateLimits.secondary;
+          sawAny = true;
+        }
       }
     }
-    if (latestRateLimit) await this.state.update(RATE_LIMIT_KEY, latestRateLimit);
+    if (sawAny) await this.state.update(RATE_LIMIT_KEY, { primary, secondary });
 
     if (claudeEvents.length) await this.appendRecentClaudeEvents(claudeEvents);
 
@@ -63,8 +73,8 @@ export class UsageStore {
     return this.state.get<UsageBreakdown>(BREAKDOWN_KEY) ?? emptyBreakdown();
   }
 
-  getCodexRateLimit(): CodexRateLimit | null {
-    return this.state.get<CodexRateLimit>(RATE_LIMIT_KEY) ?? null;
+  getCodexRateLimits(): CodexRateLimits {
+    return this.state.get<CodexRateLimits>(RATE_LIMIT_KEY) ?? { primary: null, secondary: null };
   }
 
   /** Estimated only — see docs/design.md for why Claude has no exact local rate-limit feed. */

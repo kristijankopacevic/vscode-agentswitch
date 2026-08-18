@@ -9,14 +9,29 @@ function claudeLine(ts: string, inputTokens: number): string {
   return JSON.stringify({ type: 'assistant', timestamp: ts, message: { model: 'claude-opus-5', usage: { input_tokens: inputTokens, output_tokens: 1 } } });
 }
 
-function codexLine(ts: string, inputTokens: number, usedPercent?: number): string {
+function codexLine(
+  ts: string,
+  inputTokens: number,
+  rateLimits?: { primary?: number; secondary?: number },
+): string {
   return JSON.stringify({
     timestamp: ts,
     type: 'event_msg',
     payload: {
       type: 'token_count',
       info: { last_token_usage: { input_tokens: inputTokens, output_tokens: 1, cached_input_tokens: 0 } },
-      rate_limits: usedPercent === undefined ? null : { primary: { used_percent: usedPercent, window_minutes: 10080, resets_at: 1787055227 } },
+      rate_limits: rateLimits
+        ? {
+            primary:
+              rateLimits.primary === undefined
+                ? null
+                : { used_percent: rateLimits.primary, window_minutes: 300, resets_at: 1787000000 },
+            secondary:
+              rateLimits.secondary === undefined
+                ? null
+                : { used_percent: rateLimits.secondary, window_minutes: 10080, resets_at: 1787055227 },
+          }
+        : null,
     },
   });
 }
@@ -62,12 +77,32 @@ describe('UsageStore', () => {
     expect(breakdown.overall.inputTokens).toBe(140);
   });
 
-  it('refresh() updates the persisted Codex rate limit when one appears', async () => {
-    fs.writeFileSync(codexFile, codexLine('2026-08-17T10:00:00.000Z', 50, 42) + '\n');
+  it('refresh() captures both the primary and secondary Codex windows when both appear', async () => {
+    fs.writeFileSync(codexFile, codexLine('2026-08-17T10:00:00.000Z', 50, { primary: 17, secondary: 42 }) + '\n');
 
     await store.refresh([], [codexFile]);
 
-    expect(store.getCodexRateLimit()).toEqual({ usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 });
+    expect(store.getCodexRateLimits()).toEqual({
+      primary: { usedPercent: 17, windowMinutes: 300, resetsAt: 1787000000 },
+      secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 },
+    });
+  });
+
+  it('keeps the last known secondary window even when a later event omits it', async () => {
+    fs.writeFileSync(codexFile, codexLine('2026-08-17T10:00:00.000Z', 50, { primary: 17, secondary: 42 }) + '\n');
+    await store.refresh([], [codexFile]);
+    fs.appendFileSync(codexFile, codexLine('2026-08-17T10:05:00.000Z', 20, { primary: 19 }) + '\n'); // secondary absent this time
+
+    await store.refresh([], [codexFile]);
+
+    expect(store.getCodexRateLimits()).toEqual({
+      primary: { usedPercent: 19, windowMinutes: 300, resetsAt: 1787000000 },
+      secondary: { usedPercent: 42, windowMinutes: 10080, resetsAt: 1787055227 }, // preserved from before
+    });
+  });
+
+  it('getCodexRateLimits() returns nulls before any rate-limit data has appeared', () => {
+    expect(store.getCodexRateLimits()).toEqual({ primary: null, secondary: null });
   });
 
   it('getCurrentBreakdown() returns the persisted breakdown without re-reading any files', async () => {

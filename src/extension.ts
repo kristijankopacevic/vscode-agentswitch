@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('agentswitch.showUsage', async () => {
       await refreshUsage(app);
-      showDashboard(app);
+      showDashboard(app, () => updateStatusBarItems(statusBarItems, app));
     }),
   );
 
