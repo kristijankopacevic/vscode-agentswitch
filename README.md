@@ -4,13 +4,39 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.3.** Switching, usage tracking (per-account, per-project, rate limits),
-> and an interactive dashboard are built. The logic layer (116 tests) is unit-tested;
-> the VS Code UI itself (status bar, quick pick, webview) is type-checked and packaged
-> but has not been interactively clicked through — install the `.vsix` and try it.
-> Known gaps: Codex cost isn't shown (tokens only — no pricing table yet), and
+> **Status: v0.4.** Login, logout, adding, and removing accounts are all built now —
+> the extension was silently never registering with VS Code through v0.3, which is
+> why those looked broken; see the v0.3 → v0.4 notes below for what was actually a bug
+> versus what was genuinely missing. The logic layer (155 tests) is unit-tested; the VS
+> Code UI itself (status bar, quick pick, webview, terminal launching) is type-checked
+> and packaged but has not been interactively clicked through — install the `.vsix`
+> and try it. Known gaps: Codex cost isn't shown (tokens only — no pricing table yet),
 > credential storage is Windows-only for now (Claude Code uses the macOS Keychain
-> there, not a file).
+> there, not a file), and login success can't be detected automatically — the
+> extension offers to save an account after launching login rather than knowing when
+> you've actually finished.
+>
+> **v0.3 → v0.4:** four real defects, found from a report of "can't log in, add, or
+> delete accounts":
+> 1. `captureLive()` threw uncaught on a missing/empty/invalid credential file, so "Add
+>    current account" silently did nothing if you weren't signed in yet. Fixed with
+>    `captureLiveSafe()`, used everywhere a command reads the live file, plus every
+>    command is now wrapped so a thrown error becomes a visible message instead of
+>    vanishing.
+> 2. Profiles imported from `codex-switcher` had no saved credentials and **no path
+>    ever existed to fill them in** — "Add current account" always created a
+>    duplicate. Fixed: it now offers to attach to a needs-sign-in profile first.
+> 3. **There was no login or logout anywhere in the extension.** Three new commands —
+>    `AgentSwitch: Log In`, `Log Out`, `Add Another Account` — launch the real
+>    `claude auth login/logout` or `codex login/logout` in a visible terminal (Codex's
+>    CLI isn't on PATH; it's resolved from inside the installed ChatGPT extension).
+> 4. Removing a profile left a dangling "active" pointer at a deleted id, and had no
+>    confirmation. Both fixed — removal now clears that pointer and asks first.
+>
+> Separately: three old version folders sat on disk without ever being registered in
+> VS Code's extension manifest, so **no status bar items and no commands existed at
+> all** for a while — that's most of why things looked unreachable rather than broken.
+> Reload the window after installing to make sure a fresh version actually loads.
 >
 > **v0.2 → v0.3:** the status bar now shows both of Codex's rate-limit windows (5h
 > and weekly, as exact "% left") and both of Claude's (5h and 7d, as estimated token
@@ -59,12 +85,26 @@ account is billing — so a switch **never touches `mcpOAuth`**; only `claudeAiO
    - Clicking **All Accounts** (or running **AgentSwitch: Show All Accounts**) lists
      every saved account for *both* tools together, active ones marked — pick one to
      switch straight to it.
-4. **AgentSwitch: Show Usage Dashboard** — an interactive panel: overview totals,
-   both tools' rate-limit windows, every saved account with a **Switch** button next
-   to it (no button for the active one; a "Needs sign-in" badge for an imported
-   account with no saved credentials yet), per-project breakdown, and switch history.
-   Switching from here uses the exact same code path as the status bar picker.
-5. After switching, reload the window and restart any running CLI session for that
+4. **Never signed in yet, or want a second account?**
+   - **AgentSwitch: Log In** — pick a tool, and it opens a terminal running the real
+     login (`claude auth login` or `codex login`) so you can complete the actual
+     sign-in. Afterward it offers to save the result as a profile.
+   - **AgentSwitch: Add Another Account** — the guided path for going from one account
+     to two: saves the current one if it isn't saved yet, logs out, logs back in as
+     someone else, then offers to save that too. Each step can be cancelled.
+   - **AgentSwitch: Log Out** — warns first if the live account isn't saved to any
+     profile, since logging out then would lose access to it.
+   - **"Add current account…"** (in the Switch Account picker, or the dashboard) now
+     checks for a needs-sign-in profile first and offers to attach to it — so
+     accounts imported from `codex-switcher` (or any other needs-sign-in profile) can
+     actually become usable, instead of always creating a duplicate.
+5. **AgentSwitch: Show Usage Dashboard** — an interactive panel: overview totals,
+   both tools' rate-limit windows, and every saved account with **Switch** (or a
+   **Sign in** button for a needs-sign-in profile) and **Remove** next to it — plus
+   an **Add current account** / **Log in…** pair per tool at the top, per-project
+   breakdown, and switch history. Every action here calls the exact same code the
+   status bar picker uses. Removing asks for confirmation first.
+6. After switching, reload the window and restart any running CLI session for that
    tool — both Codex and Claude Code cache credentials in memory and can overwrite a
    fresh switch if left running.
 

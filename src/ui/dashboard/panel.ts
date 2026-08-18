@@ -9,6 +9,9 @@ import type { AppContext } from '../../appContext';
 import type { ToolId } from '../../profiles/ProfileStore';
 import { buildAccountRows } from '../accountRows';
 import { performSwitch } from '../switchActions';
+import { attachLiveToProfile, removeProfile } from '../accountActions';
+import { saveCurrentAccount } from '../switchQuickPick';
+import { showLoginFlow } from '../authFlows';
 
 const TOOL_LABEL: Record<ToolId, string> = { codex: 'Codex', claude: 'Claude' };
 const FIVE_HOURS_MS = 5 * 60 * 60 * 1000;
@@ -76,43 +79,93 @@ function sumTokens(bucket: { inputTokens: number; outputTokens: number }): numbe
   return bucket.inputTokens + bucket.outputTokens;
 }
 
-interface SwitchAccountMessage {
-  type: 'switchAccount';
+type DashboardAction = 'switch' | 'attach' | 'remove' | 'addAccount' | 'login';
+
+interface DashboardMessage {
+  action: DashboardAction;
   toolId: ToolId;
-  profileId: string;
+  profileId?: string;
 }
 
-function isSwitchAccountMessage(msg: unknown): msg is SwitchAccountMessage {
+function isDashboardMessage(msg: unknown): msg is DashboardMessage {
   const m = msg as Record<string, unknown>;
-  return !!m && m.type === 'switchAccount' && typeof m.profileId === 'string' && (m.toolId === 'codex' || m.toolId === 'claude');
+  if (!m || (m.toolId !== 'codex' && m.toolId !== 'claude')) return false;
+  return m.action === 'switch' || m.action === 'attach' || m.action === 'remove'
+    ? typeof m.profileId === 'string'
+    : m.action === 'addAccount' || m.action === 'login';
 }
 
 let panel: vscode.WebviewPanel | undefined;
 
-async function handleMessage(app: AppContext, onChanged: () => void, message: unknown): Promise<void> {
-  if (!isSwitchAccountMessage(message)) return;
-
-  const result = await performSwitch(app, message.toolId, message.profileId);
+async function handleSwitch(app: AppContext, onChanged: () => void, toolId: ToolId, profileId: string): Promise<void> {
+  const result = await performSwitch(app, toolId, profileId);
   if (result.kind === 'switched') {
     onChanged();
-    refreshDashboardIfOpen(app);
     const choice = await vscode.window.showInformationMessage(
       `Switched ${TOOL_LABEL[result.toolId]} to "${result.label}". Reload the window and restart any running ${TOOL_LABEL[result.toolId]} CLI sessions to pick it up.`,
       'Reload Window',
     );
     if (choice === 'Reload Window') void vscode.commands.executeCommand('workbench.action.reloadWindow');
   } else if (result.kind === 'needs-reauth') {
-    void vscode.window.showWarningMessage(
-      `"${result.label}" was imported without saved credentials and needs one sign-in first. Sign into that account, then use "Add current account…" to save it.`,
-    );
+    void vscode.window.showWarningMessage(`"${result.label}" needs one sign-in first — use the "Sign in" button on that row.`);
   } else if (result.kind === 'already-active') {
     void vscode.window.showInformationMessage(`"${result.label}" is already the active account.`);
   }
-  // 'not-found': the panel's data was stale (e.g. the profile was removed
-  // elsewhere); a re-render on the next refresh will drop its button.
+  // 'not-found': the panel's data was stale; a re-render drops its button.
 }
 
-export function showDashboard(app: AppContext, onChanged: () => void): void {
+async function handleAttach(app: AppContext, onChanged: () => void, toolId: ToolId, profileId: string): Promise<void> {
+  const result = await attachLiveToProfile(app, toolId, profileId);
+  if (result.kind === 'attached') {
+    onChanged();
+    void vscode.window.showInformationMessage(`"${result.label}" is now signed in and active.`);
+  } else if (result.kind === 'not-signed-in') {
+    void vscode.window.showErrorMessage(
+      `AgentSwitch: you're not signed into ${TOOL_LABEL[result.toolId]} yet. Use "Log in…" first, then try again.`,
+    );
+  } else if (result.kind === 'already-has-credentials') {
+    void vscode.window.showInformationMessage(`"${result.label}" already has saved credentials.`);
+  }
+}
+
+async function handleRemove(app: AppContext, onChanged: () => void, toolId: ToolId, profileId: string): Promise<void> {
+  const row = buildAccountRows(app.profiles.list(toolId), (t) => app.orchestrator.activeProfileId(t)).find(
+    (r) => r.profileId === profileId,
+  );
+  if (!row) return;
+
+  const activeSuffix = row.isActive
+    ? ` It's currently active — the ${TOOL_LABEL[toolId]} app/CLI stays signed in, but AgentSwitch will stop tracking it as an account.`
+    : '';
+  const confirmed = await vscode.window.showWarningMessage(
+    `Remove "${row.label}"? This deletes its saved credentials from AgentSwitch.${activeSuffix}`,
+    { modal: true },
+    'Remove',
+  );
+  if (confirmed !== 'Remove') return;
+
+  const result = await removeProfile(app, toolId, profileId);
+  if (result.removed) onChanged();
+}
+
+async function handleMessage(
+  context: vscode.ExtensionContext,
+  app: AppContext,
+  onChanged: () => void,
+  message: unknown,
+): Promise<void> {
+  if (!isDashboardMessage(message)) return;
+
+  if (message.action === 'switch' && message.profileId) await handleSwitch(app, onChanged, message.toolId, message.profileId);
+  else if (message.action === 'attach' && message.profileId) await handleAttach(app, onChanged, message.toolId, message.profileId);
+  else if (message.action === 'remove' && message.profileId) await handleRemove(app, onChanged, message.toolId, message.profileId);
+  else if (message.action === 'addAccount') await saveCurrentAccount(app, message.toolId, onChanged);
+  else if (message.action === 'login') await showLoginFlow(context, app, onChanged);
+
+  refreshDashboardIfOpen(app);
+}
+
+export function showDashboard(context: vscode.ExtensionContext, app: AppContext, onChanged: () => void): void {
   const html = renderDashboardHtml(buildDashboardData(app), crypto.randomUUID());
   if (panel) {
     panel.reveal();
@@ -123,7 +176,7 @@ export function showDashboard(app: AppContext, onChanged: () => void): void {
     enableScripts: true,
   });
   panel.webview.html = html;
-  panel.webview.onDidReceiveMessage((message) => void handleMessage(app, onChanged, message));
+  panel.webview.onDidReceiveMessage((message) => void handleMessage(context, app, onChanged, message));
   panel.onDidDispose(() => {
     panel = undefined;
   });

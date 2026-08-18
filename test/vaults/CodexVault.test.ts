@@ -39,6 +39,25 @@ describe('CodexVault', () => {
     expect(result).toEqual(other);
   });
 
+  it('captureLiveSafe() returns the same object as captureLive() when signed in', () => {
+    const vault = new CodexVault(authPath);
+
+    expect(vault.captureLiveSafe()).toEqual(vault.captureLive());
+  });
+
+  it('captureLiveSafe() returns null instead of throwing when never signed in (file missing)', () => {
+    const vault = new CodexVault(path.join(dir, 'does-not-exist.json'));
+
+    expect(vault.captureLiveSafe()).toBeNull();
+  });
+
+  it('captureLiveSafe() returns null instead of throwing for a truncated/invalid file', () => {
+    fs.writeFileSync(authPath, '{ not valid');
+    const vault = new CodexVault(authPath);
+
+    expect(vault.captureLiveSafe()).toBeNull();
+  });
+
   it('applyLive() leaves the live file untouched if the underlying write fails', () => {
     const vault = new CodexVault(authPath);
     const before = fs.readFileSync(authPath, 'utf8');

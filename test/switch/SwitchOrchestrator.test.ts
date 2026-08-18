@@ -67,6 +67,21 @@ describe('SwitchOrchestrator', () => {
     expect(switchLog.recent()).toHaveLength(0);
   });
 
+  it('clearActiveProfile() removes the active pointer, so activeProfileId() returns undefined afterward', async () => {
+    const profile = await profiles.create({ toolId: 'codex', label: 'A', snapshot: { account: 'A' } });
+    await orchestrator.switchTo('codex', profile.id);
+    expect(orchestrator.activeProfileId('codex')).toBe(profile.id);
+
+    await orchestrator.clearActiveProfile('codex');
+
+    expect(orchestrator.activeProfileId('codex')).toBeUndefined();
+  });
+
+  it('clearActiveProfile() on a tool with no active profile is a harmless no-op', async () => {
+    await expect(orchestrator.clearActiveProfile('codex')).resolves.not.toThrow();
+    expect(orchestrator.activeProfileId('codex')).toBeUndefined();
+  });
+
   it('adoptCurrentAsActive() marks a profile active and logs it, without touching the vault', async () => {
     const profile = await profiles.create({ toolId: 'codex', label: 'Already signed in', snapshot: { account: 'original' } });
 

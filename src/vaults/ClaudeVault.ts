@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { atomicWrite } from './atomicWrite';
+import { readJsonSafe } from './readJsonSafe';
 import type { Vault } from './Vault';
 
 const MANAGED_KEYS = ['claudeAiOauth', 'organizationUuid'] as const;
@@ -19,6 +20,10 @@ export class ClaudeVault implements Vault {
 
   captureLive(): Record<string, unknown> {
     return JSON.parse(fs.readFileSync(this.credentialsPath, 'utf8'));
+  }
+
+  captureLiveSafe(): Record<string, unknown> | null {
+    return readJsonSafe(this.credentialsPath);
   }
 
   applyLive(snapshot: Record<string, unknown>): void {

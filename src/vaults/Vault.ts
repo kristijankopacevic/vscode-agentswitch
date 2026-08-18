@@ -13,6 +13,14 @@ export interface Vault {
   captureLive(): Record<string, unknown>;
 
   /**
+   * Same as captureLive(), but returns null instead of throwing when the
+   * tool has never been signed into (file missing, empty, or invalid) —
+   * "not signed in yet" is a value a caller can check, not an exception
+   * it has to remember to catch.
+   */
+  captureLiveSafe(): Record<string, unknown> | null;
+
+  /**
    * Applies `snapshot` onto the live credential file. Merge vs. whole-file
    * replace is a vault-specific decision (see ClaudeVault, which merges to
    * preserve unrelated state like MCP server logins).

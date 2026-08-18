@@ -81,13 +81,34 @@ describe('renderDashboardHtml', () => {
     expect(row).toContain('data-tool-id="claude"');
   });
 
-  it('marks an account needing sign-in instead of giving it a switch button', () => {
+  it('gives an account needing sign-in a Sign-in button instead of a switch button', () => {
     const html = renderDashboardHtml(DATA, 'test-nonce');
 
     const start = html.indexOf('Imported');
     const row = html.slice(start, html.indexOf('</tr>', start));
-    expect(row.toLowerCase()).toContain('sign-in');
+    expect(row).toContain('data-action="attach"');
+    expect(row).toContain('data-profile-id="p-new"');
+    expect(row).toContain('data-tool-id="codex"');
     expect(row).not.toContain('data-action="switch"');
+  });
+
+  it('gives every account row a Remove button carrying its profile id and tool, active accounts included', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    const start = html.indexOf('Work');
+    const row = html.slice(start, html.indexOf('</tr>', start));
+    expect(row).toContain('data-action="remove"');
+    expect(row).toContain('data-profile-id="p-work"');
+    expect(row).toContain('data-tool-id="codex"');
+  });
+
+  it('includes an "Add current account" and a "Log in" action for each tool', () => {
+    const html = renderDashboardHtml(DATA, 'test-nonce');
+
+    for (const toolId of ['codex', 'claude']) {
+      expect(html).toContain(`data-action="addAccount" data-tool-id="${toolId}"`);
+      expect(html).toContain(`data-action="login" data-tool-id="${toolId}"`);
+    }
   });
 
   it('shows unattributed usage as a note, not as a fake account row', () => {

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { atomicWrite } from './atomicWrite';
+import { readJsonSafe } from './readJsonSafe';
 import type { Vault } from './Vault';
 
 /**
@@ -13,6 +14,10 @@ export class CodexVault implements Vault {
 
   captureLive(): Record<string, unknown> {
     return JSON.parse(fs.readFileSync(this.authPath, 'utf8'));
+  }
+
+  captureLiveSafe(): Record<string, unknown> | null {
+    return readJsonSafe(this.authPath);
   }
 
   applyLive(snapshot: Record<string, unknown>): void {

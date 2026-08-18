@@ -65,17 +65,31 @@ function windowRow(window: DashboardRateLimitWindow | null, color: string): stri
   ${meter(window.usedPercent, color)}`;
 }
 
+function actionButton(action: string, toolId: string, profileId: string, label: string): string {
+  return `<button type="button" data-action="${esc(action)}" data-tool-id="${esc(toolId)}" data-profile-id="${esc(profileId)}">${esc(label)}</button>`;
+}
+
 function accountRowHtml(row: DashboardAccountRow): string[] {
   const tokens = fmt(row.inputTokens + row.outputTokens);
   let statusCell: string;
   if (row.isActive) {
     statusCell = '<span class="badge active">● Active</span>';
   } else if (row.needsReauth) {
-    statusCell = '<span class="badge">Needs sign-in</span>';
+    statusCell = actionButton('attach', row.toolId, row.profileId, 'Sign in');
   } else {
-    statusCell = `<button type="button" data-action="switch" data-tool-id="${esc(row.toolId)}" data-profile-id="${esc(row.profileId)}">Switch</button>`;
+    statusCell = actionButton('switch', row.toolId, row.profileId, 'Switch');
   }
-  return [esc(row.label), esc(TOOL_LABEL[row.toolId]), tokens, statusCell];
+  const removeCell = actionButton('remove', row.toolId, row.profileId, 'Remove');
+  return [esc(row.label), esc(TOOL_LABEL[row.toolId]), tokens, statusCell, removeCell];
+}
+
+function toolActionsHtml(toolId: DashboardAccountRow['toolId']): string {
+  const id = esc(toolId);
+  return `<div class="tool-actions">
+    <span class="tool-actions-label">${esc(TOOL_LABEL[toolId])}:</span>
+    <button type="button" data-action="addAccount" data-tool-id="${id}">Add current account</button>
+    <button type="button" data-action="login" data-tool-id="${id}">Log in…</button>
+  </div>`;
 }
 
 function table(headers: string[], rows: string[][]): string {
@@ -119,6 +133,11 @@ export function renderDashboardHtml(data: DashboardData, nonce: string): string 
   .badge.active { color: var(--vscode-foreground); font-weight: 600; }
   button { font-size: 0.85em; padding: 2px 10px; cursor: pointer; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 3px; }
   button:hover { background: var(--vscode-button-hoverBackground); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .tool-actions { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.9em; }
+  .tool-actions-label { color: var(--vscode-descriptionForeground); min-width: 50px; }
+  td button[data-action="remove"] { background: transparent; color: var(--vscode-descriptionForeground); margin-left: 4px; }
+  td button[data-action="remove"]:hover { color: var(--vscode-errorForeground); background: var(--vscode-editorWidget-background); }
 </style>
 </head>
 <body>
@@ -149,7 +168,9 @@ export function renderDashboardHtml(data: DashboardData, nonce: string): string 
   </div>
 
   <h2>Accounts</h2>
-  ${table(['Account', 'Tool', 'Tokens', ''], accountRows)}
+  ${toolActionsHtml('codex')}
+  ${toolActionsHtml('claude')}
+  ${table(['Account', 'Tool', 'Tokens', '', ''], accountRows)}
 
   <h2>By project</h2>
   ${table(['Project', 'Tokens'], projectRows)}
@@ -160,13 +181,13 @@ export function renderDashboardHtml(data: DashboardData, nonce: string): string 
   <script nonce="${nonce}">
     (function () {
       const vscode = acquireVsCodeApi();
-      document.querySelectorAll('button[data-action="switch"]').forEach((button) => {
+      document.querySelectorAll('button[data-action]').forEach((button) => {
         button.addEventListener('click', () => {
           button.disabled = true;
           vscode.postMessage({
-            type: 'switchAccount',
+            action: button.getAttribute('data-action'),
             toolId: button.getAttribute('data-tool-id'),
-            profileId: button.getAttribute('data-profile-id'),
+            profileId: button.getAttribute('data-profile-id') || undefined,
           });
         });
       });

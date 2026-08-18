@@ -42,6 +42,16 @@ export class SwitchOrchestrator {
     await this.switchLog.append(toolId, profileId);
   }
 
+  /**
+   * Clears the active pointer for a tool without touching the vault — used
+   * when the active profile is removed, so a deleted profile's id never
+   * lingers as "active" (state.update with `undefined` deletes the key on
+   * both the real vscode.Memento and the in-memory test fake).
+   */
+  async clearActiveProfile(toolId: ToolId): Promise<void> {
+    await this.state.update(activeProfileKey(toolId), undefined);
+  }
+
   async switchTo(toolId: ToolId, targetProfileId: string): Promise<void> {
     const vault = this.vaults[toolId];
     if (!vault) throw new Error(`No vault registered for tool "${toolId}".`);

@@ -3,6 +3,7 @@ import type { ToolId } from '../profiles/ProfileStore';
 import type { AppContext } from '../appContext';
 import { buildAccountRows, type AccountRow } from './accountRows';
 import { performSwitch } from './switchActions';
+import { attachLiveToProfile, removeProfile } from './accountActions';
 
 const TOOL_LABEL: Record<ToolId, string> = { codex: 'Codex', claude: 'Claude Code' };
 
@@ -42,9 +43,9 @@ export async function showSwitchAccountFlow(app: AppContext, onChanged: () => vo
   if (!picked) return;
 
   if (picked.action.kind === 'add') {
-    await addCurrentAccount(app, toolId, onChanged);
+    await saveCurrentAccount(app, toolId, onChanged);
   } else if (picked.action.kind === 'remove') {
-    await removeAccount(app, toolId, onChanged);
+    await removeAccountFlow(app, toolId, onChanged);
   } else {
     await switchTo(app, picked.action.row, onChanged);
   }
@@ -72,28 +73,83 @@ export async function showAllAccountsFlow(app: AppContext, onChanged: () => void
   await switchTo(app, picked.row, onChanged);
 }
 
-async function addCurrentAccount(app: AppContext, toolId: ToolId, onChanged: () => void): Promise<void> {
+/**
+ * Saves whatever's currently live as an AgentSwitch account. If any
+ * needs-sign-in profile exists for this tool (e.g. one imported from
+ * codex-switcher, which has an identity but no credentials), offers to
+ * attach to that instead of creating a duplicate — attachLiveToProfile()
+ * is the only path that can ever turn one of those into a usable account.
+ * Shared by "Add current account…" and every login flow's "save it" step.
+ */
+export async function saveCurrentAccount(app: AppContext, toolId: ToolId, onChanged: () => void): Promise<void> {
+  const live = app.vaults[toolId].captureLiveSafe();
+  if (!live) {
+    void vscode.window.showErrorMessage(
+      `AgentSwitch: you're not signed into ${TOOL_LABEL[toolId]} yet. Use "AgentSwitch: Log In" first, then try again.`,
+    );
+    return;
+  }
+
+  const needsReauth = accountRowsForTool(app, toolId).filter((r) => r.needsReauth);
+  if (needsReauth.length > 0) {
+    const items = [
+      ...needsReauth.map((r) => ({ label: `Attach to "${r.label}"`, description: '(needs sign-in)', profileId: r.profileId as string | undefined })),
+      { label: '$(add) Create a new profile instead', description: undefined, profileId: undefined },
+    ];
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: `Save the signed-in ${TOOL_LABEL[toolId]} account as…`,
+    });
+    if (!picked) return;
+
+    if (picked.profileId) {
+      const result = await attachLiveToProfile(app, toolId, picked.profileId);
+      if (result.kind === 'attached') {
+        onChanged();
+        void vscode.window.showInformationMessage(`AgentSwitch: "${result.label}" is now signed in and active.`);
+      } else if (result.kind === 'already-has-credentials') {
+        void vscode.window.showInformationMessage(`AgentSwitch: "${result.label}" already has saved credentials — nothing changed.`);
+      } else if (result.kind === 'not-signed-in') {
+        void vscode.window.showErrorMessage(`AgentSwitch: you're not signed into ${TOOL_LABEL[toolId]} yet.`);
+      }
+      return;
+    }
+    // else: user chose "Create a new profile instead" — fall through below.
+  }
+
   const label = await vscode.window.showInputBox({ prompt: `Label for the currently signed-in ${TOOL_LABEL[toolId]} account` });
   if (!label) return;
 
-  const snapshot = app.vaults[toolId].captureLive();
-  const profile = await app.profiles.create({ toolId, label, snapshot });
+  const profile = await app.profiles.create({ toolId, label, snapshot: live });
   await app.orchestrator.adoptCurrentAsActive(toolId, profile.id);
   onChanged();
   void vscode.window.showInformationMessage(`AgentSwitch: added "${label}" as the active ${TOOL_LABEL[toolId]} account.`);
 }
 
-async function removeAccount(app: AppContext, toolId: ToolId, onChanged: () => void): Promise<void> {
-  const removable = app.profiles.list(toolId);
+async function removeAccountFlow(app: AppContext, toolId: ToolId, onChanged: () => void): Promise<void> {
+  const removable = accountRowsForTool(app, toolId);
   if (removable.length === 0) {
     void vscode.window.showInformationMessage(`No saved ${TOOL_LABEL[toolId]} accounts to remove.`);
     return;
   }
-  const target = await vscode.window.showQuickPick(removable.map((p) => ({ label: p.label, profileId: p.id })));
+
+  const target = await vscode.window.showQuickPick(
+    removable.map((row) => ({ label: row.label, description: rowDescription(row), row })),
+    { placeHolder: 'Remove which account?' },
+  );
   if (!target) return;
 
-  await app.profiles.remove(target.profileId);
-  onChanged();
+  const activeSuffix = target.row.isActive
+    ? ` It's currently active — the ${TOOL_LABEL[toolId]} app/CLI stays signed in, but AgentSwitch will stop tracking it as an account.`
+    : '';
+  const confirmed = await vscode.window.showWarningMessage(
+    `Remove "${target.row.label}"? This deletes its saved credentials from AgentSwitch.${activeSuffix}`,
+    { modal: true },
+    'Remove',
+  );
+  if (confirmed !== 'Remove') return;
+
+  const result = await removeProfile(app, toolId, target.row.profileId);
+  if (result.removed) onChanged();
 }
 
 async function switchTo(app: AppContext, row: AccountRow, onChanged: () => void): Promise<void> {

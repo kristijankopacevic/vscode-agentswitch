@@ -81,6 +81,18 @@ describe('ClaudeVault', () => {
     expect(result.futureField).toBe('keep-me');
   });
 
+  it('captureLiveSafe() returns the same object as captureLive() when signed in', () => {
+    const vault = new ClaudeVault(credentialsPath);
+
+    expect(vault.captureLiveSafe()).toEqual(vault.captureLive());
+  });
+
+  it('captureLiveSafe() returns null instead of throwing when never signed in (file missing)', () => {
+    const vault = new ClaudeVault(path.join(dir, 'does-not-exist.json'));
+
+    expect(vault.captureLiveSafe()).toBeNull();
+  });
+
   it('applyLive() leaves the live file untouched if the underlying write fails', () => {
     const vault = new ClaudeVault(credentialsPath);
     const before = fs.readFileSync(credentialsPath, 'utf8');
