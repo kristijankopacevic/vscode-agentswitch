@@ -157,6 +157,19 @@ and packaged into a real `.vsix`, but "the login terminal launches the right com
 and "the dashboard's Remove button asks before deleting" are claims for a human to
 verify by installing it, not claims an automated build can make.
 
+## Persisted-state schema changes
+
+`agentswitch.codexRateLimit` changed shape between v0.2 (a bare `CodexRateLimit`) and
+v0.3 (`{primary, secondary}`) with no migration step — a machine that had used v0.2
+kept the old value in `globalState`, and reading it under the new shape produced
+`undefined` fields rather than `null` ones, which crashed the formatter the first time
+it ran (`Cannot read properties of undefined (reading 'windowMinutes')`). Fixed in
+v0.4.2 by having `UsageStore.getCodexRateLimits()` validate `primary` and `secondary`
+independently via `coerceRateLimit()` and default anything malformed to `null`, rather
+than trusting the persisted shape. **Any future change to a persisted globalState
+value's shape needs the same treatment** — validate on read, never assume old data
+matches the current type.
+
 ## Known limitations
 
 - **Attribution starts at install.** Historical usage recorded before AgentSwitch was

@@ -4,7 +4,7 @@ Switch accounts for **Codex** and **Claude Code** — extension and CLI, both at
 and track usage, cost, and rate-limit windows per account. One extension, replacing
 separate Codex-only and Claude-only switchers.
 
-> **Status: v0.4.1.** Login, logout, adding, and removing accounts are all built now —
+> **Status: v0.4.2.** Login, logout, adding, and removing accounts are all built now —
 > the extension was silently never registering with VS Code through v0.3, which is
 > why those looked broken; see the v0.3 → v0.4 notes below for what was actually a bug
 > versus what was genuinely missing. The logic layer (155 tests) is unit-tested; the VS
@@ -46,6 +46,16 @@ separate Codex-only and Claude-only switchers.
 > `powershell.exe` explicitly so this doesn't depend on whatever shell happens to be
 > your default profile. Claude's login was unaffected (`claude auth login` is a bare
 > command, no quoting involved).
+>
+> **v0.4.1 → v0.4.2:** "Switch Account" could fail with `Cannot read properties of
+> undefined (reading 'windowMinutes')`. Cause: through v0.2, the same globalState key
+> held Codex's rate limit as one bare object; v0.3 changed the shape to
+> `{primary, secondary}` without migrating or validating old data, so a machine that
+> had used an earlier version kept a stale legacy value with no `primary`/`secondary`
+> fields at all — reading them off it gives `undefined`, not `null`, and the formatter
+> crashed on the first one it touched. Fixed: `getCodexRateLimits()` now validates each
+> field's shape independently and treats anything malformed as "no data yet" rather
+> than crashing.
 >
 > **v0.2 → v0.3:** the status bar now shows both of Codex's rate-limit windows (5h
 > and weekly, as exact "% left") and both of Claude's (5h and 7d, as estimated token

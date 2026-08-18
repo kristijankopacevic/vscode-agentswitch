@@ -4,7 +4,7 @@ import type { UsageEvent } from './UsageEvent';
 import type { ClaudeTranscriptFile } from './discoverFiles';
 import { UsageIndex } from './UsageIndex';
 import { parseClaudeTranscriptLine } from './ClaudeUsageReader';
-import { parseCodexRolloutLine, type CodexRateLimits } from './CodexUsageReader';
+import { parseCodexRolloutLine, coerceRateLimit, type CodexRateLimits } from './CodexUsageReader';
 import { aggregateUsageEvents, mergeBreakdowns, emptyBreakdown, type UsageBreakdown, type UsageBucket } from './aggregate';
 
 const BREAKDOWN_KEY = 'agentswitch.usageBreakdown';
@@ -74,7 +74,8 @@ export class UsageStore {
   }
 
   getCodexRateLimits(): CodexRateLimits {
-    return this.state.get<CodexRateLimits>(RATE_LIMIT_KEY) ?? { primary: null, secondary: null };
+    const raw = this.state.get<Record<string, unknown>>(RATE_LIMIT_KEY);
+    return { primary: coerceRateLimit(raw?.primary), secondary: coerceRateLimit(raw?.secondary) };
   }
 
   /** Estimated only — see docs/design.md for why Claude has no exact local rate-limit feed. */

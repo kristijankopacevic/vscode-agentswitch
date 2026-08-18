@@ -105,6 +105,22 @@ describe('UsageStore', () => {
     expect(store.getCodexRateLimits()).toEqual({ primary: null, secondary: null });
   });
 
+  it('getCodexRateLimits() sanitizes a pre-v0.3 legacy value stored under the same key, instead of crashing', () => {
+    // Through v0.2, this same globalState key held a bare CodexRateLimit
+    // object (no primary/secondary wrapper) — reading it as {primary,
+    // secondary} makes both fields `undefined`, which used to reach
+    // formatCodexWindows() and throw on `undefined.windowMinutes`.
+    state.update('agentswitch.codexRateLimit', { usedPercent: 30, windowMinutes: 300, resetsAt: 123 });
+
+    expect(store.getCodexRateLimits()).toEqual({ primary: null, secondary: null });
+  });
+
+  it('getCodexRateLimits() drops a malformed primary/secondary entry instead of crashing', () => {
+    state.update('agentswitch.codexRateLimit', { primary: { usedPercent: 17 }, secondary: null });
+
+    expect(store.getCodexRateLimits()).toEqual({ primary: null, secondary: null });
+  });
+
   it('getCurrentBreakdown() returns the persisted breakdown without re-reading any files', async () => {
     fs.writeFileSync(claudeFile, claudeLine('2026-08-17T10:00:00.000Z', 100) + '\n');
     await store.refresh([{ path: claudeFile, project: 'proj-a' }], []);

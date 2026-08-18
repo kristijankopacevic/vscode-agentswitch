@@ -35,6 +35,22 @@ function parseWindow(raw: unknown): CodexRateLimit | null {
 }
 
 /**
+ * Validates an already-camelCased value (e.g. read back out of
+ * globalState) as a well-formed CodexRateLimit, returning null for
+ * anything else. Needed because through v0.2 the same globalState key
+ * held a bare CodexRateLimit with no primary/secondary wrapper at all —
+ * reading that shape as `{primary, secondary}.primary` gives `undefined`,
+ * not `null`, which used to reach describeWindow() and throw.
+ */
+export function coerceRateLimit(raw: unknown): CodexRateLimit | null {
+  const w = raw as Record<string, unknown> | null | undefined;
+  if (!w || typeof w.usedPercent !== 'number' || typeof w.windowMinutes !== 'number' || typeof w.resetsAt !== 'number') {
+    return null;
+  }
+  return { usedPercent: w.usedPercent, windowMinutes: w.windowMinutes, resetsAt: w.resetsAt };
+}
+
+/**
  * Parses one line of a `~/.codex/sessions/.../rollout-*.jsonl` file. Only
  * `token_count` event_msg lines carry usage or rate-limit data; every other
  * line yields nulls. Uses `last_token_usage` (the delta for that turn), not

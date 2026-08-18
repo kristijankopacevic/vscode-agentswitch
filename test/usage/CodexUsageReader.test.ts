@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCodexRolloutLine } from '../../src/usage/CodexUsageReader';
+import { parseCodexRolloutLine, coerceRateLimit } from '../../src/usage/CodexUsageReader';
 
 describe('parseCodexRolloutLine', () => {
   it('extracts a usage event from a token_count line using the per-turn delta, not the running total', () => {
@@ -101,5 +101,29 @@ describe('parseCodexRolloutLine', () => {
 
   it('returns nulls for unparseable JSON rather than throwing', () => {
     expect(parseCodexRolloutLine('not json')).toEqual({ event: null, rateLimits: null });
+  });
+});
+
+describe('coerceRateLimit', () => {
+  it('passes through a well-formed rate limit unchanged', () => {
+    const limit = { usedPercent: 17, windowMinutes: 300, resetsAt: 1787000000 };
+
+    expect(coerceRateLimit(limit)).toEqual(limit);
+  });
+
+  it('returns null for undefined (the field was never set)', () => {
+    expect(coerceRateLimit(undefined)).toBeNull();
+  });
+
+  it('returns null for null', () => {
+    expect(coerceRateLimit(null)).toBeNull();
+  });
+
+  it('returns null for a value missing windowMinutes — e.g. the pre-v0.3 single-window shape stored under the same globalState key, which had no primary/secondary wrapper at all', () => {
+    expect(coerceRateLimit({ usedPercent: 30, resetsAt: 123 })).toBeNull();
+  });
+
+  it('returns null when usedPercent is not a number', () => {
+    expect(coerceRateLimit({ usedPercent: '30', windowMinutes: 300, resetsAt: 123 })).toBeNull();
   });
 });
